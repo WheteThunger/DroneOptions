@@ -92,6 +92,9 @@ namespace Oxide.Plugins
             // Delay to give other plugins a moment to cache the drone id so they can block this.
             NextTick(() =>
             {
+                if (drone == null)
+                    return;
+
                 var ruleset = GetDroneRuleset(drone.OwnerID);
                 if (ruleset == null)
                     return;
