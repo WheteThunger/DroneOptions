@@ -129,7 +129,7 @@ bool? OnDroneOptionsChange(Drone drone)
 #### OnDroneOptionsChanged
 
 ```csharp
-void OnDroneOptionsChanged(Drone drone, SearchLight searchLight)
+void OnDroneOptionsChanged(Drone drone)
 ```
 
 - Called after this plugin has altered a drone
