@@ -18,14 +18,10 @@ Default configuration:
 
 ```json
 {
-  "DefaultRuleset": {
-    "DroneProperties": {},
-    "DamageScale": {}
-  },
+  "DefaultRuleset": {},
   "Rulesets": [
     {
       "Name": "balanced",
-      "DroneProperties": {},
       "DamageScale": {
         "Generic": 0.1,
         "Heat": 0.2,
@@ -40,7 +36,7 @@ Default configuration:
       "DroneProperties": {
         "KillInWater": false,
         "MovementAcceleration": 30.0,
-        "AltitudeAcceleration": 30.0,
+        "AltitudeAcceleration": 20.0,
         "LeanWeight": 0.0
       },
       "DamageScale": {
@@ -76,21 +72,22 @@ Default configuration:
 ```
 
 - `DefaultRuleset` -- The default ruleset applies to all drones, except for drones deployed by players with permission to another ruleset.
-  - `DamageScale` (each `0.0` to `1.0`) -- These options determine how much damage the drone will take, per damage type.
-    - Set a damage type to `1.0` (default) to take full damage.
+  - See `Rulesets` for available sub options.
+- `Rulesets` -- List of rulesets that require permission. Each ruleset generates a permssion of the format `droneoptions.ruleset.<name>`. Granting one to a player determines the properties of drones they deploy, overriding `DefaultRuleset`.
+  - `Name` -- The name of the ruleset. This will be incorporated into the generated permission: `droneoptions.ruleset.<name>`.
+  - `DamageScale` (each `0.0` to `1.0`) -- These options determine how much damage the drone will take, per damage type. If this option is excluded, drones will use vanilla damage scaling.
+    - Set a damage type to `1.0` to take full damage. This is the default for any damage type not specified.
     - Set a damage type to `0.0` to block all damage of that type.
-    - Note: For some reason, Drone collision uses `Generic` damage, not `Collision` damage.
+    - Note: Vanilla Drone collision uses `Generic` damage, not `Collision` damage. Using the Better Drone Collision plugin fixes that.
   - `DroneProperties`
-    - `KillInWater` (vanilla: `true`) -- While `true`, the drone will be destroyed when it enters water.
+    - `KillInWater` (default: `true`) -- While `true`, the drone will be destroyed when it enters water. While `false` the drone can enter water without issue.
       - Tip: While controlling a drone that is underwater, you can actually see better if wearing a diving mask.
-    - `MovementAcceleration` (vanilla: `10.0`) -- This determines the drone's horizontal movement speed.
-    - `AltitudeAcceleration` (vanilla: `10.0`) -- This determines the drone's vertical movement speed (how quickly it can go up and down).
+    - `MovementAcceleration` (default: `10.0`) -- This determines the drone's horizontal movement speed.
+    - `AltitudeAcceleration` (default: `10.0`) -- This determines the drone's vertical movement speed (how quickly it can go up and down).
     - `LeanWeight` (vanilla: `0.25`) -- This determines how much the drone leans while moving, as well as how much altitude is lost while moving.
       - Set to `0.0` for no lean or altitude loss.
         - Useful when using the [Drone Lights](https://umod.org/plugins/drone-lights) plugin since it prevents the beam from unintentionally moving.
-        - Useful or when flying in locations where the altitude does not change, such as in the underground train tunnels.
-- `Rulesets` -- List of rulesets that require permission. Each ruleset generates a permssion of the format `droneoptions.ruleset.<name>`. Granting one to a player determines the properties of drones they deploy, overriding `DefaultRuleset`.
-  - Each ruleset has the same options as `DefaultRuleset`.
+        - Useful when flying in locations where the altitude does not change, such as in the underground train tunnels.
 
 ## FAQ
 

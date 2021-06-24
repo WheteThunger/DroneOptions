@@ -10,7 +10,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Drone Options", "WhiteThunder", "0.1.0")]
+    [Info("Drone Options", "WhiteThunder", "0.1.1")]
     [Description("Allows changing toughness, speed and other properties of RC drones.")]
     internal class DroneOptions : CovalencePlugin
     {
@@ -185,11 +185,7 @@ namespace Oxide.Plugins
         private class Configuration : SerializableConfiguration
         {
             [JsonProperty("DefaultRuleset")]
-            public DroneRuleset DefaultRuleset = new DroneRuleset()
-            {
-                DamageScale = new Dictionary<string, float>(),
-                DroneProperties = new DroneProperties(),
-            };
+            public DroneRuleset DefaultRuleset = new DroneRuleset();
 
             [JsonProperty("Rulesets")]
             public DroneRuleset[] Rulesets = new DroneRuleset[]
@@ -262,11 +258,11 @@ namespace Oxide.Plugins
             [JsonProperty("Name", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public string Name;
 
-            [JsonProperty("DroneProperties")]
-            public DroneProperties DroneProperties = new DroneProperties();
+            [JsonProperty("DroneProperties", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public DroneProperties DroneProperties;
 
-            [JsonProperty("DamageScale")]
-            public Dictionary<string, float> DamageScale = new Dictionary<string, float>();
+            [JsonProperty("DamageScale", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public Dictionary<string, float> DamageScale;
 
             [JsonIgnore]
             public ProtectionProperties ProtectionProperties;
