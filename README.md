@@ -27,8 +27,7 @@ Default configuration:
         "Heat": 0.2,
         "Bullet": 0.2,
         "Radiation": 0.0,
-        "AntiVehicle": 0.25,
-        "Collision": 0.0
+        "AntiVehicle": 0.25
       }
     },
     {
