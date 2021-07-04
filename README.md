@@ -86,7 +86,6 @@ Default configuration:
     },
     "DroneTurrets": {
       "DefaultProfile": {
-        "PermissionSuffix": "droneturrets",
         "DroneProperties": {
           "MovementAcceleration": 5.0,
           "AltitudeAcceleration": 5.0
@@ -104,7 +103,6 @@ Default configuration:
     },
     "MegaDrones": {
       "DefaultProfile": {
-        "PermissionSuffix": "megadrones",
         "DroneProperties": {
           "KillInWater": false,
           "MovementAcceleration": 20.0,

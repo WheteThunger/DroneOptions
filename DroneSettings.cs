@@ -384,7 +384,6 @@ namespace Oxide.Plugins
                 {
                     DefaultProfile = new DroneProfile()
                     {
-                        PermissionSuffix = "droneturrets",
                         DroneProperties = new DroneProperties()
                         {
                             MovementAcceleration = 5,
@@ -405,7 +404,6 @@ namespace Oxide.Plugins
                 {
                     DefaultProfile = new DroneProfile()
                     {
-                        PermissionSuffix = "megadrones",
                         DroneProperties = new DroneProperties()
                         {
                             MovementAcceleration = 20,
