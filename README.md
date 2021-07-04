@@ -1,18 +1,20 @@
 ## Features
 
 - Allows changing speed, toughness and other properties of RC drones
-- Allows multiple profiles based on permissions
+- Allows multiple settings profiles based on permissions
 - Allows other plugins to dynamically change a drone's profile based on attachments or other circumstances
 
-Note: By default, this plugin changes the toughness of all drones since they aren't very balanced in vanilla. Of course, you can edit the default profile, or remove it if you only want to use permission-based profiles.
+Note: By default, this plugin changes the settings of all drones since they aren't very balanced in vanilla. If you aren't happy with the plugin's defaults, you can of course configure them to your liking.
 
-## Permissions
+## How it works
 
-The following permissions come with this plugin's **default configuration**. Granting one to a player determines the properties of drones they deploy.
+There are multiple types of drones.
+- `BaseDrone` -- Normal drones with no attachments
+- `DroneStorage` -- Drones that have an attached stash container from the [Drone Storage](https://umod.org/plugins/drone-storage) plugin
+- `DroneTurrets` -- Drones that have an attached turret from the [Drone Turrets](https://umod.org/plugins/drone-turrets) plugin
+- `MegaDrones` -- Drones created by the Mega Drones plugin
 
-- `dronesettings.basedrone.god` -- Invincible drones with super speed, no altitude loss while moving, and able to go underwater.
-
-You can add more drone profiles in the plugin configuration, and the plugin will automatically generate permissions of the format `dronesettings.basedrone.<name>` when reloaded. If a player has permission to multiple profiles, only the last one will apply, based on the order in the config.
+Each drone type has a default profile which determines the speed, toughness and other properties for drones of that type. Each drone type can also have unlimited permission-based profiles which will override the default depending on the drone owner's permissions.
 
 ## Configuration
 
@@ -124,26 +126,20 @@ Default configuration:
 }
 ```
 
-- `SettingsByDroneType` -- Each drone type has a separate configuration nested under this section. Drone types are registered automatically by plugins. Developers of drone-related plugins may ask you to manually add a config section for their plugin.
-  - `BaseDrone` -- Applies to all drones, except for drones that other pluginss declare to be special.
-  - `DroneStorage` -- Applies to drones that have storage on them from the [Drone Storage](https://umod.org/plugins/drone-storage) plugin.
-  - `Drone Turrets` -- Applies to drones that have turrets on them from the [Drone Turrets](https://umod.org/plugins/drone-turrets) plugin.
-  - `Mega Drones` -- Applies to drones created by the Mega Drones plugin.
-
 Each drone type has the following options.
 - `DefaultProfile` -- Applies to all drones of this type, except for drones owned by players with permission to a profile under `ProfilesRequiringPermission` for this drone type.
 - `ProfilesRequiringPermission` -- List of profiles that require permission. Each profile will generate a permission of the format `dronesettings.<type>.<suffix>` (e.g., `dronesettings.basedrone.god`). Granting that permission to a player will cause any drones they deploy to have that profile instead of `DefaultProfile`. Granting multiple profiles to a player will cause only the last one to apply, based on the order in the config.
 
 Each profile has the following options.
-- `PermissionSuffix` -- This determins the generated permission.
+- `PermissionSuffix` -- This determins the generated permission of format `dronesettings.<type>.<suffix>`.
 - `DroneProperties`
   - `KillInWater` (default: `true`) -- While `true`, the drone will be destroyed when it enters water. While `false` the drone can enter water without issue.
-    - Tip: While controlling a drone that is underwater, you can actually see better if wearing a diving mask.
-  - `MovementAcceleration` (default: `10.0`) -- This determines the drone's horizontal movement speed.
-  - `AltitudeAcceleration` (default: `10.0`) -- This determines the drone's vertical movement speed (how quickly it can go up and down).
+    - Tip: While controlling a drone that is underwater, for some reason, you can see better if wearing a diving mask.
+  - `MovementAcceleration` (default: `10.0`) -- This determines the drone's horizontal movement speed (forward, backward, sideways).
+  - `AltitudeAcceleration` (default: `10.0`) -- This determines the drone's vertical movement speed (up, down).
   - `LeanWeight` (vanilla: `0.25`) -- This determines how much the drone leans while moving, as well as how much altitude is lost while moving.
     - Set to `0.0` for no lean or altitude loss.
-      - Useful when using the [Drone Lights](https://umod.org/plugins/drone-lights) plugin since it prevents the beam from unintentionally moving.
+      - Useful when using the [Drone Lights](https://umod.org/plugins/drone-lights) plugin since it prevents the beam from unintentionally moving as the drone leans.
       - Useful when flying in locations where the altitude does not change, such as in the underground train tunnels.
 - `DamageScale` (each `0.0` to `1.0`) -- These options determine how much damage the drone will take, per damage type. If this option is excluded, drones will use vanilla damage scaling.
   - Set a damage type to `1.0` to take full damage. This is the default for any damage type not specified.
@@ -194,7 +190,7 @@ string OnDroneTypeDetermine(Drone drone)
 
 - Called when this plugin is determining which profile to apply to a particular drone
 - Returning a string indicates that the drone is special and should use the specified profile type
-- If all plugins return `null`, this plugin will select a profile of type `"BaseDrone"`, based on the drone owner's permission
+- If all plugins return `null`, this plugin will select a profile of type `"BaseDrone"`
 - Recommended to conditionally return your plugin's `Name` or `null`
 
 #### OnDroneSettingsChange
