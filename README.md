@@ -10,9 +10,9 @@ Note: By default, this plugin changes the toughness of all drones since they are
 
 The following permissions come with this plugin's **default configuration**. Granting one to a player determines the properties of drones they deploy.
 
-- `droneoptions.basedrone.god` -- Invincible drones with super speed, no altitude loss while moving, and able to go underwater.
+- `dronesettings.basedrone.god` -- Invincible drones with super speed, no altitude loss while moving, and able to go underwater.
 
-You can add more drone profiles in the plugin configuration, and the plugin will automatically generate permissions of the format `droneoptions.basedrone.<name>` when reloaded. If a player has permission to multiple profiles, only the last one will apply, based on the order in the config.
+You can add more drone profiles in the plugin configuration, and the plugin will automatically generate permissions of the format `dronesettings.basedrone.<name>` when reloaded. If a player has permission to multiple profiles, only the last one will apply, based on the order in the config.
 
 ## Configuration
 
@@ -20,7 +20,7 @@ Default configuration:
 
 ```json
 {
-  "OptionsByDroneType": {
+  "SettingsByDroneType": {
     "BaseDrone": {
       "DefaultProfile": {
         "DamageScale": {
@@ -126,7 +126,7 @@ Default configuration:
 }
 ```
 
-- `OptionsByDroneType` -- Each drone type has a separate configuration nested under this section. Drone types are registered automatically by plugins. Developers of drone-related plugins may ask you to manually add a config section for their plugin.
+- `SettingsByDroneType` -- Each drone type has a separate configuration nested under this section. Drone types are registered automatically by plugins. Developers of drone-related plugins may ask you to manually add a config section for their plugin.
   - `BaseDrone` -- Applies to all drones, except for drones that other pluginss declare to be special.
   - `DroneStorage` -- Applies to drones that have storage on them from the [Drone Storage](https://umod.org/plugins/drone-storage) plugin.
   - `Drone Turrets` -- Applies to drones that have turrets on them from the [Drone Turrets](https://umod.org/plugins/drone-turrets) plugin.
@@ -134,7 +134,7 @@ Default configuration:
 
 Each drone type has the following options.
 - `DefaultProfile` -- Applies to all drones of this type, except for drones owned by players with permission to a profile under `ProfilesRequiringPermission` for this drone type.
-- `ProfilesRequiringPermission` -- List of profiles that require permission. Each profile will generate a permission of the format `droneoptions.<type>.<suffix>` (e.g., `droneoptions.basedrone.god`). Granting that permission to a player will cause any drones they deploy to have that profile instead of `DefaultProfile`. Granting multiple profiles to a player will cause only the last one to apply, based on the order in the config.
+- `ProfilesRequiringPermission` -- List of profiles that require permission. Each profile will generate a permission of the format `dronesettings.<type>.<suffix>` (e.g., `dronesettings.basedrone.god`). Granting that permission to a player will cause any drones they deploy to have that profile instead of `DefaultProfile`. Granting multiple profiles to a player will cause only the last one to apply, based on the order in the config.
 
 Each profile has the following options.
 - `PermissionSuffix` -- This determins the generated permission.
@@ -199,20 +199,20 @@ string OnDroneTypeDetermine(Drone drone)
 - If all plugins return `null`, this plugin will select a profile of type `"BaseDrone"`, based on the drone owner's permission
 - Recommended to conditionally return your plugin's `Name` or `null`
 
-#### OnDroneOptionsChange
+#### OnDroneSettingsChange
 
 ```csharp
-bool? OnDroneOptionsChange(Drone drone)
+bool? OnDroneSettingsChange(Drone drone)
 ```
 
 - Called when this plugin is about to alter a drone
 - Returning `false` will prevent the the drone from being altered
 - Returning `null` will result in the default behavior
 
-#### OnDroneOptionsChanged
+#### OnDroneSettingsChanged
 
 ```csharp
-void OnDroneOptionsChanged(Drone drone)
+void OnDroneSettingsChanged(Drone drone)
 ```
 
 - Called after this plugin has altered a drone

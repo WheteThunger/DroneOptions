@@ -10,16 +10,16 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Drone Options", "WhiteThunder", "0.2.0")]
+    [Info("Drone Settings", "WhiteThunder", "0.2.0")]
     [Description("Allows changing speed, toughness and other properties of RC drones.")]
-    internal class DroneOptions : CovalencePlugin
+    internal class DroneSettings : CovalencePlugin
     {
         #region Fields
 
-        private static DroneOptions _pluginInstance;
+        private static DroneSettings _pluginInstance;
         private static Configuration _pluginConfig;
 
-        private const string PermissionProfilePrefix = "droneoptions";
+        private const string PermissionProfilePrefix = "dronesettings";
 
         private const string BaseDroneType = "BaseDrone";
 
@@ -61,11 +61,11 @@ namespace Oxide.Plugins
                 if (drone == null || !IsDroneEligible(drone))
                     continue;
 
-                if (ApplyOptionsWasBlocked(drone))
+                if (ApplySettingsWasBlocked(drone))
                     continue;
 
                 RestoreVanillaSettings(drone);
-                Interface.CallHook("OnDroneOptionsChanged", drone);
+                Interface.CallHook("OnDroneSettingsChanged", drone);
             }
 
             foreach (var protectionProperties in _customProtectionProperties)
@@ -122,9 +122,9 @@ namespace Oxide.Plugins
             return Interface.CallHook("OnDroneTypeDetermine", drone) as string;
         }
 
-        private static bool ApplyOptionsWasBlocked(Drone drone)
+        private static bool ApplySettingsWasBlocked(Drone drone)
         {
-            object hookResult = Interface.CallHook("OnDroneOptionsChange", drone);
+            object hookResult = Interface.CallHook("OnDroneSettingsChange", drone);
             return hookResult is bool && (bool)hookResult == false;
         }
 
@@ -146,14 +146,14 @@ namespace Oxide.Plugins
 
         private bool TryApplyProfile(Drone drone, DroneProfile profile, bool restoreVanilla = false)
         {
-            if (ApplyOptionsWasBlocked(drone))
+            if (ApplySettingsWasBlocked(drone))
                 return false;
 
             if (restoreVanilla)
                 RestoreVanillaSettings(drone);
 
             profile.ApplyToDrone(drone);
-            Interface.CallHook("OnDroneOptionsChanged", drone);
+            Interface.CallHook("OnDroneSettingsChanged", drone);
             return true;
         }
 
@@ -203,7 +203,7 @@ namespace Oxide.Plugins
             [JsonIgnore]
             public string Permission;
 
-            public void Init(DroneOptions pluginInstance, string droneType, bool requiresPermission)
+            public void Init(DroneSettings pluginInstance, string droneType, bool requiresPermission)
             {
                 if (requiresPermission)
                 {
@@ -277,7 +277,7 @@ namespace Oxide.Plugins
             [JsonProperty("ProfilesRequiringPermission")]
             public DroneProfile[] ProfilesRequiringPermission = new DroneProfile[0];
 
-            public void Init(DroneOptions pluginInstance, string droneType)
+            public void Init(DroneSettings pluginInstance, string droneType)
             {
                 DefaultProfile.Init(pluginInstance, droneType, requiresPermission: false);
 
@@ -304,8 +304,8 @@ namespace Oxide.Plugins
 
         private class Configuration : SerializableConfiguration
         {
-            [JsonProperty("OptionsByDroneType")]
-            public Dictionary<string, DroneTypeConfig> OptionsByDroneType = new Dictionary<string, DroneTypeConfig>()
+            [JsonProperty("SettingsByDroneType")]
+            public Dictionary<string, DroneTypeConfig> SettingsByDroneType = new Dictionary<string, DroneTypeConfig>()
             {
                 [BaseDroneType] = new DroneTypeConfig()
                 {
@@ -426,16 +426,16 @@ namespace Oxide.Plugins
                 },
             };
 
-            public void Init(DroneOptions pluginInstance)
+            public void Init(DroneSettings pluginInstance)
             {
-                foreach (var entry in OptionsByDroneType)
+                foreach (var entry in SettingsByDroneType)
                     entry.Value.Init(pluginInstance, entry.Key);
             }
 
             public DroneProfile FindProfile(string droneType, ulong ownerId)
             {
                 DroneTypeConfig droneTypeConfig;
-                return OptionsByDroneType.TryGetValue(droneType, out droneTypeConfig)
+                return SettingsByDroneType.TryGetValue(droneType, out droneTypeConfig)
                     ? droneTypeConfig.GetProfileForOwner(ownerId)
                     : null;
             }
