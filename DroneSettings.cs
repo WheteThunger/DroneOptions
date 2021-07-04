@@ -80,7 +80,7 @@ namespace Oxide.Plugins
             if (!IsDroneEligible(drone))
                 return;
 
-            if (_vanillaDroneProtection == null && drone.baseProtection != null)
+            if (_vanillaDroneProtection == null)
                 _vanillaDroneProtection = drone.baseProtection;
 
             if (_vanillaDroneProperties == null)
@@ -117,7 +117,7 @@ namespace Oxide.Plugins
 
         #region Helper Methods
 
-        private static string DetermineDroneProfileType(Drone drone)
+        private static string DetermineDroneType(Drone drone)
         {
             return Interface.CallHook("OnDroneTypeDetermine", drone) as string;
         }
@@ -182,7 +182,7 @@ namespace Oxide.Plugins
 
         private DroneProfile GetDroneProfile(Drone drone)
         {
-            var droneType = DetermineDroneProfileType(drone) ?? BaseDroneType;
+            var droneType = DetermineDroneType(drone) ?? BaseDroneType;
             return _pluginConfig.FindProfile(droneType, drone.OwnerID);
         }
 
