@@ -10,8 +10,8 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Drone Options", "WhiteThunder", "0.1.2")]
-    [Description("Allows changing toughness, speed and other properties of RC drones.")]
+    [Info("Drone Options", "WhiteThunder", "0.2.0")]
+    [Description("Allows changing speed, toughness and other properties of RC drones.")]
     internal class DroneOptions : CovalencePlugin
     {
         #region Fields
@@ -19,7 +19,9 @@ namespace Oxide.Plugins
         private static DroneOptions _pluginInstance;
         private static Configuration _pluginConfig;
 
-        private const string PermissionRulesetPrefix = "droneoptions.ruleset";
+        private const string PermissionProfilePrefix = "droneoptions";
+
+        private const string BaseDroneType = "BaseDrone";
 
         private DroneProperties _vanillaDroneProperties;
         private ProtectionProperties _vanillaDroneProtection;
@@ -59,15 +61,10 @@ namespace Oxide.Plugins
                 if (drone == null || !IsDroneEligible(drone))
                     continue;
 
-                if (ApplyRulesetWasBlocked(drone))
+                if (ApplyOptionsWasBlocked(drone))
                     continue;
 
-                if (_vanillaDroneProtection != null && _customProtectionProperties.Contains(drone.baseProtection))
-                    drone.baseProtection = _vanillaDroneProtection;
-
-                if (_vanillaDroneProperties != null)
-                    _vanillaDroneProperties?.ApplyToDrone(drone);
-
+                RestoreVanillaSettings(drone);
                 Interface.CallHook("OnDroneOptionsChanged", drone);
             }
 
@@ -89,17 +86,17 @@ namespace Oxide.Plugins
             if (_vanillaDroneProperties == null)
                 _vanillaDroneProperties = DroneProperties.FromDrone(drone);
 
-            // Delay to give other plugins a moment to cache the drone id so they can block this.
+            // Delay to give other plugins a moment to cache the drone id so they can specify drone type or block this.
             NextTick(() =>
             {
                 if (drone == null)
                     return;
 
-                var ruleset = GetDroneRuleset(drone.OwnerID);
-                if (ruleset == null)
+                var profile = GetDroneProfile(drone);
+                if (profile == null)
                     return;
 
-                TryApplyRuleset(drone, ruleset);
+                TryApplyProfile(drone, profile);
             });
         }
 
@@ -107,20 +104,25 @@ namespace Oxide.Plugins
 
         #region API
 
-        private void ResetDroneOptions(Drone drone)
+        private void API_RefreshDroneProfile(Drone drone)
         {
-            var ruleset = GetDroneRuleset(drone.OwnerID);
-            if (ruleset == null)
+            var profile = GetDroneProfile(drone);
+            if (profile == null)
                 return;
 
-            TryApplyRuleset(drone, ruleset);
+            TryApplyProfile(drone, profile, restoreVanilla: true);
         }
 
         #endregion
 
         #region Helper Methods
 
-        private static bool ApplyRulesetWasBlocked(Drone drone)
+        private static string DetermineDroneProfileType(Drone drone)
+        {
+            return Interface.CallHook("OnDroneTypeDetermine", drone) as string;
+        }
+
+        private static bool ApplyOptionsWasBlocked(Drone drone)
         {
             object hookResult = Interface.CallHook("OnDroneOptionsChange", drone);
             return hookResult is bool && (bool)hookResult == false;
@@ -130,15 +132,27 @@ namespace Oxide.Plugins
 
         private static bool IsDroneEligible(Drone drone) => !(drone is DeliveryDrone);
 
-        private static string GetRulesetPermission(string name) =>
-            $"{PermissionRulesetPrefix}.{name}";
+        private static string GetProfilePermission(string droneType, string profileSuffix) =>
+            $"{PermissionProfilePrefix}.{droneType}.{profileSuffix}";
 
-        private static bool TryApplyRuleset(Drone drone, DroneRuleset ruleset)
+        private void RestoreVanillaSettings(Drone drone)
         {
-            if (ApplyRulesetWasBlocked(drone))
+            if (_vanillaDroneProtection != null && _customProtectionProperties.Contains(drone.baseProtection))
+                drone.baseProtection = _vanillaDroneProtection;
+
+            if (_vanillaDroneProperties != null)
+                _vanillaDroneProperties?.ApplyToDrone(drone);
+        }
+
+        private bool TryApplyProfile(Drone drone, DroneProfile profile, bool restoreVanilla = false)
+        {
+            if (ApplyOptionsWasBlocked(drone))
                 return false;
 
-            ruleset.ApplyToDrone(drone);
+            if (restoreVanilla)
+                RestoreVanillaSettings(drone);
+
+            profile.ApplyToDrone(drone);
             Interface.CallHook("OnDroneOptionsChanged", drone);
             return true;
         }
@@ -166,96 +180,16 @@ namespace Oxide.Plugins
 
         #region Configuration
 
-        private DroneRuleset GetDroneRuleset(ulong ownerId)
+        private DroneProfile GetDroneProfile(Drone drone)
         {
-            if (ownerId == 0 || (_pluginConfig.Rulesets?.Length ?? 0) == 0)
-                return _pluginConfig.DefaultRuleset;
-
-            var ownerIdString = ownerId.ToString();
-            for (var i = _pluginConfig.Rulesets.Length - 1; i >= 0; i--)
-            {
-                var ruleset = _pluginConfig.Rulesets[i];
-                if (ruleset.Permission != null && permission.UserHasPermission(ownerIdString, ruleset.Permission))
-                    return ruleset;
-            }
-
-            return _pluginConfig.DefaultRuleset;
+            var droneType = DetermineDroneProfileType(drone) ?? BaseDroneType;
+            return _pluginConfig.FindProfile(droneType, drone.OwnerID);
         }
 
-        private class Configuration : SerializableConfiguration
+        private class DroneProfile
         {
-            [JsonProperty("DefaultRuleset")]
-            public DroneRuleset DefaultRuleset = new DroneRuleset();
-
-            [JsonProperty("Rulesets")]
-            public DroneRuleset[] Rulesets = new DroneRuleset[]
-            {
-                new DroneRuleset()
-                {
-                    Name = "balanced",
-                    DamageScale = new Dictionary<string, float>()
-                    {
-                        [DamageType.Generic.ToString()] = 0.1f,
-                        [DamageType.Heat.ToString()] = 0.2f,
-                        [DamageType.Bullet.ToString()] = 0.2f,
-                        [DamageType.Radiation.ToString()] = 0,
-                        [DamageType.AntiVehicle.ToString()] = 0.25f,
-                    },
-                },
-                new DroneRuleset()
-                {
-                    Name = "god",
-                    DroneProperties = new DroneProperties()
-                    {
-                        KillInWater = false,
-                        MovementAcceleration = 30,
-                        AltitudeAcceleration = 20,
-                        LeanWeight = 0,
-                    },
-                    DamageScale = new Dictionary<string, float>()
-                    {
-                        [DamageType.AntiVehicle.ToString()] = 0,
-                        [DamageType.Arrow.ToString()] = 0,
-                        [DamageType.Bite.ToString()] = 0,
-                        [DamageType.Bleeding.ToString()] = 0,
-                        [DamageType.Blunt.ToString()] = 0,
-                        [DamageType.Bullet.ToString()] = 0,
-                        [DamageType.Cold.ToString()] = 0,
-                        [DamageType.ColdExposure.ToString()] = 0,
-                        [DamageType.Collision.ToString()] = 0,
-                        [DamageType.Decay.ToString()] = 0,
-                        [DamageType.Drowned.ToString()] = 0,
-                        [DamageType.ElectricShock.ToString()] = 0,
-                        [DamageType.Explosion.ToString()] = 0,
-                        [DamageType.Fall.ToString()] = 0,
-                        [DamageType.Fun_Water.ToString()] = 0,
-                        [DamageType.Generic.ToString()] = 0,
-                        [DamageType.Heat.ToString()] = 0,
-                        [DamageType.Hunger.ToString()] = 0,
-                        [DamageType.Poison.ToString()] = 0,
-                        [DamageType.Radiation.ToString()] = 0,
-                        [DamageType.RadiationExposure.ToString()] = 0,
-                        [DamageType.Slash.ToString()] = 0,
-                        [DamageType.Stab.ToString()] = 0,
-                        [DamageType.Suicide.ToString()] = 0,
-                        [DamageType.Thirst.ToString()] = 0,
-                    },
-                },
-            };
-
-            public void Init(DroneOptions pluginInstance)
-            {
-                DefaultRuleset.Init(pluginInstance, requiresPermission: false);
-
-                foreach (var ruleset in Rulesets)
-                    ruleset.Init(pluginInstance, requiresPermission: true);
-            }
-        }
-
-        private class DroneRuleset
-        {
-            [JsonProperty("Name", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public string Name;
+            [JsonProperty("PermissionSuffix", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public string PermissionSuffix;
 
             [JsonProperty("DroneProperties", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public DroneProperties DroneProperties;
@@ -269,14 +203,14 @@ namespace Oxide.Plugins
             [JsonIgnore]
             public string Permission;
 
-            public void Init(DroneOptions pluginInstance, bool requiresPermission)
+            public void Init(DroneOptions pluginInstance, string droneType, bool requiresPermission)
             {
                 if (requiresPermission)
                 {
-                    if (string.IsNullOrWhiteSpace(Name))
+                    if (string.IsNullOrWhiteSpace(PermissionSuffix))
                         return;
 
-                    Permission = GetRulesetPermission(Name);
+                    Permission = GetProfilePermission(droneType, PermissionSuffix);
                     pluginInstance.permission.RegisterPermission(Permission, pluginInstance);
                 }
 
@@ -298,15 +232,13 @@ namespace Oxide.Plugins
         {
             public static DroneProperties FromDrone(Drone drone)
             {
-                var properties = new DroneProperties()
+                return new DroneProperties()
                 {
                     KillInWater = drone.killInWater,
                     MovementAcceleration = drone.movementAcceleration,
                     AltitudeAcceleration = drone.altitudeAcceleration,
                     LeanWeight = drone.leanWeight,
                 };
-
-                return properties;
             }
 
             [JsonProperty("KillInWater", DefaultValueHandling = DefaultValueHandling.Ignore)]
@@ -334,6 +266,178 @@ namespace Oxide.Plugins
 
                 if (LeanWeight != null)
                     drone.leanWeight = (float)LeanWeight;
+            }
+        }
+
+        private class DroneTypeConfig
+        {
+            [JsonProperty("DefaultProfile")]
+            public DroneProfile DefaultProfile = new DroneProfile();
+
+            [JsonProperty("ProfilesRequiringPermission")]
+            public DroneProfile[] ProfilesRequiringPermission = new DroneProfile[0];
+
+            public void Init(DroneOptions pluginInstance, string droneType)
+            {
+                DefaultProfile.Init(pluginInstance, droneType, requiresPermission: false);
+
+                foreach (var profile in ProfilesRequiringPermission)
+                    profile.Init(pluginInstance, droneType, requiresPermission: true);
+            }
+
+            public DroneProfile GetProfileForOwner(ulong ownerId)
+            {
+                if (ownerId == 0 || (ProfilesRequiringPermission?.Length ?? 0) == 0)
+                    return DefaultProfile;
+
+                var ownerIdString = ownerId.ToString();
+                for (var i = ProfilesRequiringPermission.Length - 1; i >= 0; i--)
+                {
+                    var profile = ProfilesRequiringPermission[i];
+                    if (profile.Permission != null && _pluginInstance.permission.UserHasPermission(ownerIdString, profile.Permission))
+                        return profile;
+                }
+
+                return DefaultProfile;
+            }
+        }
+
+        private class Configuration : SerializableConfiguration
+        {
+            [JsonProperty("OptionsByDroneType")]
+            public Dictionary<string, DroneTypeConfig> OptionsByDroneType = new Dictionary<string, DroneTypeConfig>()
+            {
+                [BaseDroneType] = new DroneTypeConfig()
+                {
+                    DefaultProfile = new DroneProfile()
+                    {
+                        DamageScale = new Dictionary<string, float>()
+                        {
+                            [DamageType.Generic.ToString()] = 0.1f,
+                            [DamageType.Heat.ToString()] = 0.2f,
+                            [DamageType.Bullet.ToString()] = 0.2f,
+                            [DamageType.AntiVehicle.ToString()] = 0.25f,
+                        },
+                    },
+                    ProfilesRequiringPermission = new DroneProfile[]
+                    {
+                        new DroneProfile()
+                        {
+                            PermissionSuffix = "god",
+                            DroneProperties = new DroneProperties()
+                            {
+                                KillInWater = false,
+                                MovementAcceleration = 30,
+                                AltitudeAcceleration = 20,
+                                LeanWeight = 0,
+                            },
+                            DamageScale = new Dictionary<string, float>()
+                            {
+                                [DamageType.AntiVehicle.ToString()] = 0,
+                                [DamageType.Arrow.ToString()] = 0,
+                                [DamageType.Bite.ToString()] = 0,
+                                [DamageType.Bleeding.ToString()] = 0,
+                                [DamageType.Blunt.ToString()] = 0,
+                                [DamageType.Bullet.ToString()] = 0,
+                                [DamageType.Cold.ToString()] = 0,
+                                [DamageType.ColdExposure.ToString()] = 0,
+                                [DamageType.Collision.ToString()] = 0,
+                                [DamageType.Decay.ToString()] = 0,
+                                [DamageType.Drowned.ToString()] = 0,
+                                [DamageType.ElectricShock.ToString()] = 0,
+                                [DamageType.Explosion.ToString()] = 0,
+                                [DamageType.Fall.ToString()] = 0,
+                                [DamageType.Fun_Water.ToString()] = 0,
+                                [DamageType.Generic.ToString()] = 0,
+                                [DamageType.Heat.ToString()] = 0,
+                                [DamageType.Hunger.ToString()] = 0,
+                                [DamageType.Poison.ToString()] = 0,
+                                [DamageType.Radiation.ToString()] = 0,
+                                [DamageType.RadiationExposure.ToString()] = 0,
+                                [DamageType.Slash.ToString()] = 0,
+                                [DamageType.Stab.ToString()] = 0,
+                                [DamageType.Suicide.ToString()] = 0,
+                                [DamageType.Thirst.ToString()] = 0,
+                            },
+                        },
+                    },
+                },
+                ["DroneStorage"] = new DroneTypeConfig()
+                {
+                    DefaultProfile = new DroneProfile()
+                    {
+                        DroneProperties = new DroneProperties()
+                        {
+                            MovementAcceleration = 7.5f,
+                            AltitudeAcceleration = 7.5f,
+                        },
+                        DamageScale = new Dictionary<string, float>()
+                        {
+                            [DamageType.Generic.ToString()] = 0.1f,
+                            [DamageType.Heat.ToString()] = 0.1f,
+                            [DamageType.Bullet.ToString()] = 0.1f,
+                            [DamageType.AntiVehicle.ToString()] = 0.1f,
+                        },
+                    },
+                },
+                ["DroneTurrets"] = new DroneTypeConfig()
+                {
+                    DefaultProfile = new DroneProfile()
+                    {
+                        PermissionSuffix = "droneturrets",
+                        DroneProperties = new DroneProperties()
+                        {
+                            MovementAcceleration = 5,
+                            AltitudeAcceleration = 5,
+                        },
+                        DamageScale = new Dictionary<string, float>()
+                        {
+                            [DamageType.Generic.ToString()] = 0.1f,
+                            [DamageType.Heat.ToString()] = 0.1f,
+                            [DamageType.Bullet.ToString()] = 0.1f,
+                            [DamageType.AntiVehicle.ToString()] = 0.1f,
+                            [DamageType.Explosion.ToString()] = 0.75f,
+                            [DamageType.Blunt.ToString()] = 0.75f,
+                        },
+                    },
+                },
+                ["MegaDrones"] = new DroneTypeConfig()
+                {
+                    DefaultProfile = new DroneProfile()
+                    {
+                        PermissionSuffix = "megadrones",
+                        DroneProperties = new DroneProperties()
+                        {
+                            MovementAcceleration = 20,
+                            AltitudeAcceleration = 20,
+                            KillInWater = false,
+                            LeanWeight = 0.1f,
+                        },
+                        DamageScale = new Dictionary<string, float>()
+                        {
+                            [DamageType.Generic.ToString()] = 0.1f,
+                            [DamageType.Heat.ToString()] = 0.05f,
+                            [DamageType.Bullet.ToString()] = 0.05f,
+                            [DamageType.AntiVehicle.ToString()] = 0.1f,
+                            [DamageType.Explosion.ToString()] = 0.1f,
+                            [DamageType.Blunt.ToString()] = 0.25f,
+                        },
+                    },
+                },
+            };
+
+            public void Init(DroneOptions pluginInstance)
+            {
+                foreach (var entry in OptionsByDroneType)
+                    entry.Value.Init(pluginInstance, entry.Key);
+            }
+
+            public DroneProfile FindProfile(string droneType, ulong ownerId)
+            {
+                DroneTypeConfig droneTypeConfig;
+                return OptionsByDroneType.TryGetValue(droneType, out droneTypeConfig)
+                    ? droneTypeConfig.GetProfileForOwner(ownerId)
+                    : null;
             }
         }
 
@@ -431,8 +535,9 @@ namespace Oxide.Plugins
                     SaveConfig();
                 }
             }
-            catch
+            catch (Exception e)
             {
+                LogError(e.Message);
                 LogWarning($"Configuration file {Name}.json is invalid; using defaults");
                 LoadDefaultConfig();
             }
