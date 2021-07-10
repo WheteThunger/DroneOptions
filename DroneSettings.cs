@@ -10,7 +10,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Drone Settings", "WhiteThunder", "1.0.0")]
+    [Info("Drone Settings", "WhiteThunder", "1.1.0")]
     [Description("Allows changing speed, toughness and other properties of RC drones.")]
     internal class DroneSettings : CovalencePlugin
     {
@@ -397,6 +397,24 @@ namespace Oxide.Plugins
                             [DamageType.AntiVehicle.ToString()] = 0.1f,
                             [DamageType.Explosion.ToString()] = 0.75f,
                             [DamageType.Blunt.ToString()] = 0.75f,
+                        },
+                    },
+                },
+                ["RidableDrones"] = new DroneTypeConfig()
+                {
+                    DefaultProfile = new DroneProfile()
+                    {
+                        DroneProperties = new DroneProperties()
+                        {
+                            MovementAcceleration = 7.5f,
+                            AltitudeAcceleration = 7.5f,
+                        },
+                        DamageScale = new Dictionary<string, float>()
+                        {
+                            [DamageType.Generic.ToString()] = 0.1f,
+                            [DamageType.Heat.ToString()] = 0.1f,
+                            [DamageType.Bullet.ToString()] = 0.1f,
+                            [DamageType.AntiVehicle.ToString()] = 0.1f,
                         },
                     },
                 },

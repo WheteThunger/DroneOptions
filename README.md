@@ -12,6 +12,7 @@ There are multiple types of drones.
 - `BaseDrone` -- Normal drones with no attachments
 - `DroneStorage` -- Drones that have an attached stash container from the [Drone Storage](https://umod.org/plugins/drone-storage) plugin
 - `DroneTurrets` -- Drones that have an attached turret from the [Drone Turrets](https://umod.org/plugins/drone-turrets) plugin
+- `RidableDrones` -- Drones that have an attached chair from the [Ridable Drones](https://umod.org/plugins/ridable-drones) plugin
 - `MegaDrones` -- Drones created by the Mega Drones plugin
 
 Each drone type has a default profile which determines the speed, toughness and other properties for drones of that type. Each drone type can also have unlimited permission-based profiles which will override the default depending on the drone owner's permissions.
@@ -99,6 +100,21 @@ Default configuration:
           "AntiVehicle": 0.1,
           "Explosion": 0.75,
           "Blunt": 0.75
+        }
+      },
+      "ProfilesRequiringPermission": []
+    },
+    "RidableDrones": {
+      "DefaultProfile": {
+        "DroneProperties": {
+          "MovementAcceleration": 7.5,
+          "AltitudeAcceleration": 7.5
+        },
+        "DamageScale": {
+          "Generic": 0.1,
+          "Heat": 0.1,
+          "Bullet": 0.1,
+          "AntiVehicle": 0.1
         }
       },
       "ProfilesRequiringPermission": []
