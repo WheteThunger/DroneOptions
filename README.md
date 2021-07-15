@@ -177,7 +177,7 @@ Note: If you are unable to steer the drone, that is likely because you have a pl
 ## Recommended compatible plugins
 
 Drone balance:
-- (This plugin) [Drone Settings](https://umod.org/plugins/drone-settings) -- Allows changing speed, toughness and other properties of RC drones.
+- [Drone Settings](https://umod.org/plugins/drone-settings) (This plugin) -- Allows changing speed, toughness and other properties of RC drones.
 - [Targetable Drones](https://umod.org/plugins/targetable-drones) -- Allows RC drones to be targeted by Auto Turrets and SAM Sites.
 - [Limited Drone Range](https://umod.org/plugins/limited-drone-range) -- Limits how far RC drones can be controlled from computer stations.
 
