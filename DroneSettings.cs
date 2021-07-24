@@ -1,20 +1,26 @@
-﻿using Newtonsoft.Json;
+﻿using Network;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 using Oxide.Core;
+using Oxide.Core.Plugins;
 using Rust;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Drone Settings", "WhiteThunder", "1.1.0")]
+    [Info("Drone Settings", "WhiteThunder", "1.1.1")]
     [Description("Allows changing speed, toughness and other properties of RC drones.")]
     internal class DroneSettings : CovalencePlugin
     {
         #region Fields
+
+        [PluginReference]
+        private Plugin DroneScaleManager;
 
         private static DroneSettings _pluginInstance;
         private static Configuration _pluginConfig;
@@ -50,6 +56,19 @@ namespace Oxide.Plugins
                 OnEntitySpawned(drone);
             }
 
+            foreach (var player in BasePlayer.activePlayerList)
+            {
+                var station = player.GetMounted() as ComputerStation;
+                if (station == null)
+                    continue;
+
+                var drone = GetControlledDrone(station);
+                if (drone == null)
+                    continue;
+
+                OnBookmarkControlStarted(station, player, string.Empty, drone);
+            }
+
             Subscribe(nameof(OnEntitySpawned));
         }
 
@@ -61,11 +80,13 @@ namespace Oxide.Plugins
                 if (drone == null || !IsDroneEligible(drone))
                     continue;
 
-                if (ApplySettingsWasBlocked(drone))
-                    continue;
+                DroneConnectionFixer.RemoveFromDrone(drone);
 
-                RestoreVanillaSettings(drone);
-                Interface.CallHook("OnDroneSettingsChanged", drone);
+                if (!ApplySettingsWasBlocked(drone))
+                {
+                    RestoreVanillaSettings(drone);
+                    Interface.CallHook("OnDroneSettingsChanged", drone);
+                }
             }
 
             foreach (var protectionProperties in _customProtectionProperties)
@@ -100,6 +121,31 @@ namespace Oxide.Plugins
             });
         }
 
+        private void OnBookmarkControlStarted(ComputerStation station, BasePlayer player, string bookmarkName, Drone drone)
+        {
+            DroneConnectionFixer.OnControlStarted(drone, player);
+        }
+
+        private void OnBookmarkControlEnded(ComputerStation station, BasePlayer player, Drone drone)
+        {
+            if (drone == null)
+                return;
+
+            DroneConnectionFixer.OnControlEnded(drone, player);
+        }
+
+        private void OnDroneScaled(Drone drone, BaseEntity rootEntity, float scale, float previousScale)
+        {
+            if (scale == 1)
+            {
+                DroneConnectionFixer.OnRootEntityChanged(drone, drone);
+            }
+            else if (previousScale == 1)
+            {
+                DroneConnectionFixer.OnRootEntityChanged(drone, rootEntity);
+            }
+        }
+
         #endregion
 
         #region API
@@ -128,12 +174,26 @@ namespace Oxide.Plugins
             return hookResult is bool && (bool)hookResult == false;
         }
 
+        private static BaseEntity GetRootEntity(Drone drone)
+        {
+            return _pluginInstance.DroneScaleManager?.Call("API_GetRootEntity", drone) as BaseEntity;
+        }
+
+        private static BaseEntity GetDroneOrRootEntity(Drone drone)
+        {
+            var rootEntity = GetRootEntity(drone);
+            return rootEntity != null ? rootEntity : drone;
+        }
+
         private static float Clamp(float x, float min, float max) => Math.Max(min, Math.Min(x, max));
 
         private static bool IsDroneEligible(Drone drone) => !(drone is DeliveryDrone);
 
         private static string GetProfilePermission(string droneType, string profileSuffix) =>
             $"{PermissionProfilePrefix}.{droneType}.{profileSuffix}";
+
+        private static Drone GetControlledDrone(ComputerStation station) =>
+            station.currentlyControllingEnt.Get(serverside: true) as Drone;
 
         private void RestoreVanillaSettings(Drone drone)
         {
@@ -174,6 +234,121 @@ namespace Oxide.Plugins
             }
 
             return protectionProperties;
+        }
+
+        #endregion
+
+        #region Drone Network Fixer
+
+        // Fixes issue where fast moving drones temporarily disconnect and reconnect.
+        // This issue occurs because the drone's network group and the client's secondary network group cannot be changed at the same time.
+        private class DroneConnectionFixer : EntityComponent<Drone>
+        {
+            public static void OnControlStarted(Drone drone, BasePlayer player)
+            {
+                drone.GetOrAddComponent<DroneConnectionFixer>().AddController(player);
+            }
+
+            public static void OnControlEnded(Drone drone, BasePlayer player)
+            {
+                var component = drone.GetComponent<DroneConnectionFixer>();
+                if (component == null)
+                    return;
+
+                component.RemoveController(player);
+            }
+
+            public static void OnRootEntityChanged(Drone drone, BaseEntity rootEntity)
+            {
+                var component = drone.GetComponent<DroneConnectionFixer>();
+                if (component == null)
+                    return;
+
+                component.SetRootEntity(rootEntity);
+            }
+
+            public static void RemoveFromDrone(Drone drone) =>
+                DestroyImmediate(drone.GetComponent<DroneConnectionFixer>());
+
+            private bool _wasCallingNetworkGroup = false;
+            private BaseEntity _rootEntity;
+            private List<BasePlayer> _controllers = new List<BasePlayer>();
+
+            private void Awake()
+            {
+                _rootEntity = GetDroneOrRootEntity(baseEntity);
+            }
+
+            private void AddController(BasePlayer player)
+            {
+                _controllers.Add(player);
+            }
+
+            private void RemoveController(BasePlayer player)
+            {
+                _controllers.Remove(player);
+                if (_controllers.Count == 0)
+                {
+                    DestroyImmediate(this);
+                }
+            }
+
+            private void SetRootEntity(BaseEntity rootEntity)
+            {
+                _rootEntity = rootEntity;
+            }
+
+            // Using LateUpdate since that's the soonest we can learn about a pending Invoke.
+            private void LateUpdate()
+            {
+                // Detect when UpdateNetworkGroup has been scheduled, in order to schedule a custom one in its place
+                if (_rootEntity.isCallingUpdateNetworkGroup && !_wasCallingNetworkGroup)
+                    ScheduleCustomUpdateNetworkGroup(_rootEntity);
+
+                _wasCallingNetworkGroup = _rootEntity.isCallingUpdateNetworkGroup;
+            }
+
+            private void SendFakeUpdateNetworkGroup(BaseEntity entity, BasePlayer player, uint groupId)
+            {
+                if (Net.sv.write.Start())
+                {
+                    Net.sv.write.PacketID(Message.Type.GroupChange);
+                    Net.sv.write.EntityID(entity.net.ID);
+                    Net.sv.write.GroupID(groupId);
+                    Net.sv.write.Send(new SendInfo(player.net.connection));
+                }
+            }
+
+            private void CustomUpdateNetworkGroup()
+            {
+                foreach (var player in _controllers)
+                {
+                    // Temporarily tell the client that the drone is in the global network group.
+                    SendFakeUpdateNetworkGroup(_rootEntity, player, BaseNetworkable.GlobalNetworkGroup.ID);
+
+                    // Update the client secondary network group to the one that the drone will change to.
+                    player.net.SwitchSecondaryGroup(Network.Net.sv.visibility.GetGroup(_rootEntity.transform.position));
+                }
+
+                // Update the drone's network group based on its current position.
+                // This will update clients to be aware that the drone is now in the new network group.
+                _rootEntity.UpdateNetworkGroup();
+            }
+
+            private void ScheduleCustomUpdateNetworkGroup(BaseEntity entity)
+            {
+                entity.CancelInvoke(entity.UpdateNetworkGroup);
+                Invoke(CustomUpdateNetworkGroup, 5);
+            }
+
+            private void OnDestroy()
+            {
+                if (_rootEntity == null)
+                    return;
+
+                if (_rootEntity.isCallingUpdateNetworkGroup && !_rootEntity.IsInvoking(_rootEntity.UpdateNetworkGroup))
+                    _rootEntity.UpdateNetworkGroup();
+            }
         }
 
         #endregion
