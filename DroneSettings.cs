@@ -417,6 +417,9 @@ namespace Oxide.Plugins
             [JsonProperty("KillInWater", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public bool? KillInWater;
 
+            [JsonProperty("DisableWhenHurtChance")]
+            public float? DisableWhenHurtChance = 25;
+
             [JsonProperty("MovementAcceleration", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public float? MovementAcceleration;
 
@@ -429,16 +432,30 @@ namespace Oxide.Plugins
             public void ApplyToDrone(Drone drone)
             {
                 if (KillInWater != null)
+                {
                     drone.killInWater = (bool)KillInWater;
+                }
+
+                if (DisableWhenHurtChance != null)
+                {
+                    drone.disableWhenHurt = DisableWhenHurtChance > 0;
+                    drone.disableWhenHurtChance = (float)DisableWhenHurtChance / 100f;
+                }
 
                 if (MovementAcceleration != null)
+                {
                     drone.movementAcceleration = (float)MovementAcceleration;
+                }
 
                 if (AltitudeAcceleration != null)
+                {
                     drone.altitudeAcceleration = (float)AltitudeAcceleration;
+                }
 
                 if (LeanWeight != null)
+                {
                     drone.leanWeight = (float)LeanWeight;
+                }
             }
         }
 
@@ -500,6 +517,7 @@ namespace Oxide.Plugins
                             DroneProperties = new DroneProperties()
                             {
                                 KillInWater = false,
+                                DisableWhenHurtChance = 0,
                                 MovementAcceleration = 30,
                                 AltitudeAcceleration = 20,
                                 LeanWeight = 0,
@@ -597,6 +615,7 @@ namespace Oxide.Plugins
                     {
                         DroneProperties = new DroneProperties()
                         {
+                            DisableWhenHurtChance = 0,
                             MovementAcceleration = 20,
                             AltitudeAcceleration = 20,
                             KillInWater = false,

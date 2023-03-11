@@ -38,6 +38,7 @@ Default configuration:
           "PermissionSuffix": "god",
           "DroneProperties": {
             "KillInWater": false,
+            "DisableWhenHurtChance": 25.0,
             "MovementAcceleration": 30.0,
             "AltitudeAcceleration": 20.0,
             "LeanWeight": 0.0
@@ -123,6 +124,7 @@ Default configuration:
       "DefaultProfile": {
         "DroneProperties": {
           "KillInWater": false,
+          "DisableWhenHurtChance": 0.0,
           "MovementAcceleration": 20.0,
           "AltitudeAcceleration": 20.0,
           "LeanWeight": 0.1
@@ -147,10 +149,11 @@ Each drone type has the following options.
 - `ProfilesRequiringPermission` -- List of profiles that require permission. Each profile will generate a permission of the format `dronesettings.<type>.<suffix>` (e.g., `dronesettings.basedrone.god`). Granting that permission to a player will cause any drones they deploy to have that profile instead of `DefaultProfile`. Granting multiple profiles to a player will cause only the last one to apply, based on the order in the config.
 
 Each profile has the following options.
-- `PermissionSuffix` -- This determins the generated permission of format `dronesettings.<type>.<suffix>`.
+- `PermissionSuffix` -- This determines the generated permission of format `dronesettings.<type>.<suffix>`.
 - `DroneProperties`
   - `KillInWater` (default: `true`) -- While `true`, the drone will be destroyed when it enters water. While `false` the drone can enter water without issue.
     - Tip: While controlling a drone that is underwater, for some reason, you can see better if wearing a diving mask.
+  - `DisableWhenHurtChance` (default: `25.0`) -- This determines the chance that the drone control will be briefly disabled when the drone is damaged.
   - `MovementAcceleration` (default: `10.0`) -- This determines the drone's horizontal movement speed (forward, backward, sideways).
   - `AltitudeAcceleration` (default: `10.0`) -- This determines the drone's vertical movement speed (up, down).
   - `LeanWeight` (vanilla: `0.25`) -- This determines how much the drone leans while moving, as well as how much altitude is lost while moving.
