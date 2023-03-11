@@ -26,6 +26,13 @@ Default configuration:
   "SettingsByDroneType": {
     "BaseDrone": {
       "DefaultProfile": {
+        "DroneProperties": {
+          "KillInWater": true,
+          "DisableWhenHurtChance": 25.0,
+          "MovementAcceleration": 10.0,
+          "AltitudeAcceleration": 10.0,
+          "LeanWeight": 0.025
+        },
         "DamageScale": {
           "Generic": 0.1,
           "Heat": 0.2,
@@ -38,7 +45,7 @@ Default configuration:
           "PermissionSuffix": "god",
           "DroneProperties": {
             "KillInWater": false,
-            "DisableWhenHurtChance": 25.0,
+            "DisableWhenHurtChance": 0.0,
             "MovementAcceleration": 30.0,
             "AltitudeAcceleration": 20.0,
             "LeanWeight": 0.0
@@ -76,8 +83,11 @@ Default configuration:
     "DroneStorage": {
       "DefaultProfile": {
         "DroneProperties": {
+          "KillInWater": true,
+          "DisableWhenHurtChance": 25.0,
           "MovementAcceleration": 7.5,
-          "AltitudeAcceleration": 7.5
+          "AltitudeAcceleration": 7.5,
+          "LeanWeight": 0.025
         },
         "DamageScale": {
           "Generic": 0.1,
@@ -91,8 +101,11 @@ Default configuration:
     "DroneTurrets": {
       "DefaultProfile": {
         "DroneProperties": {
+          "KillInWater": true,
+          "DisableWhenHurtChance": 25.0,
           "MovementAcceleration": 5.0,
-          "AltitudeAcceleration": 5.0
+          "AltitudeAcceleration": 5.0,
+          "LeanWeight": 0.025
         },
         "DamageScale": {
           "Generic": 0.1,
@@ -108,8 +121,11 @@ Default configuration:
     "RidableDrones": {
       "DefaultProfile": {
         "DroneProperties": {
+          "KillInWater": true,
+          "DisableWhenHurtChance": 25.0,
           "MovementAcceleration": 7.5,
-          "AltitudeAcceleration": 7.5
+          "AltitudeAcceleration": 7.5,
+          "LeanWeight": 0.025
         },
         "DamageScale": {
           "Generic": 0.1,

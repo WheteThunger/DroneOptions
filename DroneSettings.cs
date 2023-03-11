@@ -364,10 +364,10 @@ namespace Oxide.Plugins
             [JsonProperty("PermissionSuffix", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public string PermissionSuffix;
 
-            [JsonProperty("DroneProperties", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public DroneProperties DroneProperties;
+            [JsonProperty("DroneProperties")]
+            public DroneProperties DroneProperties = new DroneProperties();
 
-            [JsonProperty("DamageScale", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            [JsonProperty("DamageScale")]
             public Dictionary<string, float> DamageScale;
 
             [JsonIgnore]
@@ -414,48 +414,29 @@ namespace Oxide.Plugins
                 };
             }
 
-            [JsonProperty("KillInWater", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public bool? KillInWater;
+            [JsonProperty("KillInWater")]
+            public bool KillInWater = true;
 
             [JsonProperty("DisableWhenHurtChance")]
-            public float? DisableWhenHurtChance = 25;
+            public float DisableWhenHurtChance = 25;
 
-            [JsonProperty("MovementAcceleration", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public float? MovementAcceleration;
+            [JsonProperty("MovementAcceleration")]
+            public float MovementAcceleration = 10;
 
-            [JsonProperty("AltitudeAcceleration", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public float? AltitudeAcceleration;
+            [JsonProperty("AltitudeAcceleration")]
+            public float AltitudeAcceleration = 10;
 
-            [JsonProperty("LeanWeight", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public float? LeanWeight;
+            [JsonProperty("LeanWeight")]
+            public float LeanWeight = 0.025f;
 
             public void ApplyToDrone(Drone drone)
             {
-                if (KillInWater != null)
-                {
-                    drone.killInWater = (bool)KillInWater;
-                }
-
-                if (DisableWhenHurtChance != null)
-                {
-                    drone.disableWhenHurt = DisableWhenHurtChance > 0;
-                    drone.disableWhenHurtChance = (float)DisableWhenHurtChance / 100f;
-                }
-
-                if (MovementAcceleration != null)
-                {
-                    drone.movementAcceleration = (float)MovementAcceleration;
-                }
-
-                if (AltitudeAcceleration != null)
-                {
-                    drone.altitudeAcceleration = (float)AltitudeAcceleration;
-                }
-
-                if (LeanWeight != null)
-                {
-                    drone.leanWeight = (float)LeanWeight;
-                }
+                drone.killInWater = KillInWater;
+                drone.disableWhenHurt = DisableWhenHurtChance > 0;
+                drone.disableWhenHurtChance = DisableWhenHurtChance / 100f;
+                drone.movementAcceleration = MovementAcceleration;
+                drone.altitudeAcceleration = AltitudeAcceleration;
+                drone.leanWeight = LeanWeight;
             }
         }
 
