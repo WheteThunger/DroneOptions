@@ -246,7 +246,7 @@ string OnDroneTypeDetermine(Drone drone)
 #### OnDroneSettingsChange
 
 ```csharp
-bool? OnDroneSettingsChange(Drone drone)
+object OnDroneSettingsChange(Drone drone)
 ```
 
 - Called when this plugin is about to alter a drone
