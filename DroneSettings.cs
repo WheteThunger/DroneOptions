@@ -258,8 +258,8 @@ namespace Oxide.Plugins
             public static void OnControlStarted(DroneSettings plugin, Drone drone, BasePlayer player)
             {
                 var component = drone.GetOrAddComponent<DroneConnectionFixer>();
-                component._rootEntity = plugin.GetDroneOrRootEntity(drone);
-                component._controllers.Add(player);
+                component.SetRootEntity(plugin.GetDroneOrRootEntity(drone));
+                component._viewers.Add(player);
             }
 
             public static void OnControlEnded(Drone drone, BasePlayer player)
@@ -277,7 +277,7 @@ namespace Oxide.Plugins
                 if (component == null)
                     return;
 
-                component._rootEntity = rootEntity;
+                component.SetRootEntity(rootEntity);
             }
 
             public static void RemoveFromDrone(Drone drone)
@@ -286,13 +286,26 @@ namespace Oxide.Plugins
             }
 
             private BaseEntity _rootEntity;
-            private List<BasePlayer> _controllers = new List<BasePlayer>();
-            private bool _wasCallingNetworkGroup;
+            private List<BasePlayer> _viewers = new List<BasePlayer>();
+            private bool _isCallingCustomUpdateNetworkGroup;
+            private Action _updateNetworkGroup;
+            private Action _customUpdateNetworkGroup;
+
+            private DroneConnectionFixer()
+            {
+                _customUpdateNetworkGroup = CustomUpdateNetworkGroup;
+            }
+
+            private void SetRootEntity(BaseEntity rootEntity)
+            {
+                _rootEntity = rootEntity;
+                _updateNetworkGroup = _rootEntity.UpdateNetworkGroup;
+            }
 
             private void RemoveController(BasePlayer player)
             {
-                _controllers.Remove(player);
-                if (_controllers.Count == 0)
+                _viewers.Remove(player);
+                if (_viewers.Count == 0)
                 {
                     DestroyImmediate(this);
                 }
@@ -301,13 +314,13 @@ namespace Oxide.Plugins
             // Using LateUpdate since that's the soonest we can learn about a pending Invoke.
             private void LateUpdate()
             {
-                // Detect when UpdateNetworkGroup has been scheduled, in order to schedule a custom one in its place
-                if (_rootEntity.isCallingUpdateNetworkGroup && !_wasCallingNetworkGroup)
+                // Detect when UpdateNetworkGroup has been scheduled, in order to schedule a custom one in its place.
+                if (_rootEntity.isCallingUpdateNetworkGroup && !_isCallingCustomUpdateNetworkGroup)
                 {
-                    ScheduleCustomUpdateNetworkGroup(_rootEntity);
+                    _rootEntity.CancelInvoke(_updateNetworkGroup);
+                    Invoke(_customUpdateNetworkGroup, 5);
+                    _isCallingCustomUpdateNetworkGroup = true;
                 }
-
-                _wasCallingNetworkGroup = _rootEntity.isCallingUpdateNetworkGroup;
             }
 
             private void SendFakeUpdateNetworkGroup(BaseEntity entity, BasePlayer player, uint groupId)
@@ -321,7 +334,7 @@ namespace Oxide.Plugins
 
             private void CustomUpdateNetworkGroup()
             {
-                foreach (var player in _controllers)
+                foreach (var player in _viewers)
                 {
                     // Temporarily tell the client that the drone is in the global network group.
                     SendFakeUpdateNetworkGroup(_rootEntity, player, BaseNetworkable.GlobalNetworkGroup.ID);
@@ -333,22 +346,17 @@ namespace Oxide.Plugins
                 // Update the drone's network group based on its current position.
                 // This will update clients to be aware that the drone is now in the new network group.
                 _rootEntity.UpdateNetworkGroup();
-            }
-
-            private void ScheduleCustomUpdateNetworkGroup(BaseEntity entity)
-            {
-                entity.CancelInvoke(entity.UpdateNetworkGroup);
-                Invoke(CustomUpdateNetworkGroup, 5);
+                _isCallingCustomUpdateNetworkGroup = false;
             }
 
             private void OnDestroy()
             {
-                if (_rootEntity == null)
+                if (_rootEntity == null || _rootEntity.IsDestroyed)
                     return;
 
-                if (_rootEntity.isCallingUpdateNetworkGroup && !_rootEntity.IsInvoking(_rootEntity.UpdateNetworkGroup))
+                if (_rootEntity.isCallingUpdateNetworkGroup && !_rootEntity.IsInvoking(_updateNetworkGroup))
                 {
-                    _rootEntity.UpdateNetworkGroup();
+                    _rootEntity.Invoke(_updateNetworkGroup, 5);
                 }
             }
         }
