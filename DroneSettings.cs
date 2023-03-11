@@ -178,7 +178,7 @@ namespace Oxide.Plugins
 
         private static bool IsDroneEligible(Drone drone)
         {
-            return !(drone is DeliveryDrone);
+            return drone.skinID == 0 && !(drone is DeliveryDrone);
         }
 
         private static string GetProfilePermission(string droneType, string profileSuffix)
