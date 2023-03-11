@@ -10,10 +10,11 @@ Note: By default, this plugin changes the settings of all drones since they aren
 
 There are multiple types of drones.
 - `BaseDrone` -- Normal drones with no attachments
+- `DroneBoombox` -- Drones that have an attached boombox from the [Drone Boombox](https://umod.org/plugins/drone-boombox) plugin
 - `DroneStorage` -- Drones that have an attached stash container from the [Drone Storage](https://umod.org/plugins/drone-storage) plugin
 - `DroneTurrets` -- Drones that have an attached turret from the [Drone Turrets](https://umod.org/plugins/drone-turrets) plugin
+- `MegaDrones` -- Drones created by the [Mega Drones](https://umod.org/plugins/mega-drones) plugin
 - `RidableDrones` -- Drones that have an attached chair from the [Ridable Drones](https://umod.org/plugins/ridable-drones) plugin
-- `MegaDrones` -- Drones created by the Mega Drones plugin
 
 Each drone type has a default profile which determines the speed, toughness and other properties for drones of that type. Each drone type can also have unlimited permission-based profiles which will override the default depending on the drone owner's permissions.
 
@@ -80,6 +81,24 @@ Default configuration:
         }
       ]
     },
+    "DroneBoombox": {
+      "DefaultProfile": {
+        "DroneProperties": {
+          "KillInWater": true,
+          "DisableWhenHurtChance": 25.0,
+          "MovementAcceleration": 7.5,
+          "AltitudeAcceleration": 7.5,
+          "LeanWeight": 0.025
+        },
+        "DamageScale": {
+          "Generic": 0.1,
+          "Heat": 0.1,
+          "Bullet": 0.1,
+          "AntiVehicle": 0.1
+        }
+      },
+      "ProfilesRequiringPermission": []
+    },
     "DroneStorage": {
       "DefaultProfile": {
         "DroneProperties": {
@@ -118,24 +137,6 @@ Default configuration:
       },
       "ProfilesRequiringPermission": []
     },
-    "RidableDrones": {
-      "DefaultProfile": {
-        "DroneProperties": {
-          "KillInWater": true,
-          "DisableWhenHurtChance": 25.0,
-          "MovementAcceleration": 7.5,
-          "AltitudeAcceleration": 7.5,
-          "LeanWeight": 0.025
-        },
-        "DamageScale": {
-          "Generic": 0.1,
-          "Heat": 0.1,
-          "Bullet": 0.1,
-          "AntiVehicle": 0.1
-        }
-      },
-      "ProfilesRequiringPermission": []
-    },
     "MegaDrones": {
       "DefaultProfile": {
         "DroneProperties": {
@@ -152,6 +153,24 @@ Default configuration:
           "AntiVehicle": 0.1,
           "Explosion": 0.1,
           "Blunt": 0.25
+        }
+      },
+      "ProfilesRequiringPermission": []
+    },
+    "RidableDrones": {
+      "DefaultProfile": {
+        "DroneProperties": {
+          "KillInWater": true,
+          "DisableWhenHurtChance": 25.0,
+          "MovementAcceleration": 7.5,
+          "AltitudeAcceleration": 7.5,
+          "LeanWeight": 0.025
+        },
+        "DamageScale": {
+          "Generic": 0.1,
+          "Heat": 0.1,
+          "Bullet": 0.1,
+          "AntiVehicle": 0.1
         }
       },
       "ProfilesRequiringPermission": []

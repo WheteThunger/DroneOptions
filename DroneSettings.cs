@@ -540,6 +540,24 @@ namespace Oxide.Plugins
                         },
                     },
                 },
+                ["DroneBoombox"] = new DroneTypeConfig
+                {
+                    DefaultProfile = new DroneProfile
+                    {
+                        DroneProperties = new DroneProperties
+                        {
+                            MovementAcceleration = 7.5f,
+                            AltitudeAcceleration = 7.5f,
+                        },
+                        DamageScale = new Dictionary<string, float>
+                        {
+                            [DamageType.Generic.ToString()] = 0.1f,
+                            [DamageType.Heat.ToString()] = 0.1f,
+                            [DamageType.Bullet.ToString()] = 0.1f,
+                            [DamageType.AntiVehicle.ToString()] = 0.1f,
+                        },
+                    },
+                },
                 ["DroneStorage"] = new DroneTypeConfig
                 {
                     DefaultProfile = new DroneProfile
@@ -578,24 +596,6 @@ namespace Oxide.Plugins
                         },
                     },
                 },
-                ["RidableDrones"] = new DroneTypeConfig
-                {
-                    DefaultProfile = new DroneProfile
-                    {
-                        DroneProperties = new DroneProperties
-                        {
-                            MovementAcceleration = 7.5f,
-                            AltitudeAcceleration = 7.5f,
-                        },
-                        DamageScale = new Dictionary<string, float>
-                        {
-                            [DamageType.Generic.ToString()] = 0.1f,
-                            [DamageType.Heat.ToString()] = 0.1f,
-                            [DamageType.Bullet.ToString()] = 0.1f,
-                            [DamageType.AntiVehicle.ToString()] = 0.1f,
-                        },
-                    },
-                },
                 ["MegaDrones"] = new DroneTypeConfig
                 {
                     DefaultProfile = new DroneProfile
@@ -616,6 +616,24 @@ namespace Oxide.Plugins
                             [DamageType.AntiVehicle.ToString()] = 0.1f,
                             [DamageType.Explosion.ToString()] = 0.1f,
                             [DamageType.Blunt.ToString()] = 0.25f,
+                        },
+                    },
+                },
+                ["RidableDrones"] = new DroneTypeConfig
+                {
+                    DefaultProfile = new DroneProfile
+                    {
+                        DroneProperties = new DroneProperties
+                        {
+                            MovementAcceleration = 7.5f,
+                            AltitudeAcceleration = 7.5f,
+                        },
+                        DamageScale = new Dictionary<string, float>
+                        {
+                            [DamageType.Generic.ToString()] = 0.1f,
+                            [DamageType.Heat.ToString()] = 0.1f,
+                            [DamageType.Bullet.ToString()] = 0.1f,
+                            [DamageType.AntiVehicle.ToString()] = 0.1f,
                         },
                     },
                 },
