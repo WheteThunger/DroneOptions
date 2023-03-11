@@ -12,7 +12,7 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Drone Settings", "WhiteThunder", "1.1.2")]
+    [Info("Drone Settings", "WhiteThunder", "1.2.0")]
     [Description("Allows changing speed, toughness and other properties of RC drones.")]
     internal class DroneSettings : CovalencePlugin
     {
