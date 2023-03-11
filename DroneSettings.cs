@@ -1,7 +1,6 @@
 ﻿using Network;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Newtonsoft.Json.Serialization;
 using Oxide.Core;
 using Oxide.Core.Plugins;
 using Rust;
@@ -20,10 +19,9 @@ namespace Oxide.Plugins
         #region Fields
 
         [PluginReference]
-        private Plugin DroneScaleManager;
+        private readonly Plugin DroneScaleManager;
 
-        private static DroneSettings _pluginInstance;
-        private static Configuration _pluginConfig;
+        private Configuration _config;
 
         private const string PermissionProfilePrefix = "dronesettings";
 
@@ -39,8 +37,7 @@ namespace Oxide.Plugins
 
         private void Init()
         {
-            _pluginInstance = this;
-            _pluginConfig.Init(this);
+            _config.Init(this);
 
             Unsubscribe(nameof(OnEntitySpawned));
         }
@@ -66,7 +63,7 @@ namespace Oxide.Plugins
                 if (drone == null)
                     continue;
 
-                OnBookmarkControlStarted(station, player, string.Empty, drone);
+                OnBookmarkControlStarted(station, player, drone.GetIdentifier(), drone);
             }
 
             Subscribe(nameof(OnEntitySpawned));
@@ -90,10 +87,9 @@ namespace Oxide.Plugins
             }
 
             foreach (var protectionProperties in _customProtectionProperties)
+            {
                 UnityEngine.Object.Destroy(protectionProperties);
-
-            _pluginConfig = null;
-            _pluginInstance = null;
+            }
         }
 
         private void OnEntitySpawned(Drone drone)
@@ -102,28 +98,34 @@ namespace Oxide.Plugins
                 return;
 
             if (_vanillaDroneProtection == null)
+            {
                 _vanillaDroneProtection = drone.baseProtection;
+            }
 
             if (_vanillaDroneProperties == null)
+            {
                 _vanillaDroneProperties = DroneProperties.FromDrone(drone);
+            }
+
+            var drone2 = drone;
 
             // Delay to give other plugins a moment to cache the drone id so they can specify drone type or block this.
             NextTick(() =>
             {
-                if (drone == null)
+                if (drone2 == null)
                     return;
 
-                var profile = GetDroneProfile(drone);
+                var profile = GetDroneProfile(drone2);
                 if (profile == null)
                     return;
 
-                TryApplyProfile(drone, profile);
+                TryApplyProfile(drone2, profile);
             });
         }
 
         private void OnBookmarkControlStarted(ComputerStation station, BasePlayer player, string bookmarkName, Drone drone)
         {
-            DroneConnectionFixer.OnControlStarted(drone, player);
+            DroneConnectionFixer.OnControlStarted(this, drone, player);
         }
 
         private void OnBookmarkControlEnded(ComputerStation station, BasePlayer player, Drone drone)
@@ -170,38 +172,44 @@ namespace Oxide.Plugins
 
         private static bool ApplySettingsWasBlocked(Drone drone)
         {
-            object hookResult = Interface.CallHook("OnDroneSettingsChange", drone);
+            var hookResult = Interface.CallHook("OnDroneSettingsChange", drone);
             return hookResult is bool && (bool)hookResult == false;
         }
 
-        private static BaseEntity GetRootEntity(Drone drone)
+        private static bool IsDroneEligible(Drone drone)
         {
-            return _pluginInstance.DroneScaleManager?.Call("API_GetRootEntity", drone) as BaseEntity;
+            return !(drone is DeliveryDrone);
         }
 
-        private static BaseEntity GetDroneOrRootEntity(Drone drone)
+        private static string GetProfilePermission(string droneType, string profileSuffix)
+        {
+            return $"{PermissionProfilePrefix}.{droneType}.{profileSuffix}";
+        }
+
+        private static Drone GetControlledDrone(ComputerStation station)
+        {
+            return station.currentlyControllingEnt.Get(serverside: true) as Drone;
+        }
+
+        private BaseEntity GetRootEntity(Drone drone)
+        {
+            return DroneScaleManager?.Call("API_GetRootEntity", drone) as BaseEntity;
+        }
+
+        private BaseEntity GetDroneOrRootEntity(Drone drone)
         {
             var rootEntity = GetRootEntity(drone);
             return rootEntity != null ? rootEntity : drone;
         }
 
-        private static float Clamp(float x, float min, float max) => Math.Max(min, Math.Min(x, max));
-
-        private static bool IsDroneEligible(Drone drone) => !(drone is DeliveryDrone);
-
-        private static string GetProfilePermission(string droneType, string profileSuffix) =>
-            $"{PermissionProfilePrefix}.{droneType}.{profileSuffix}";
-
-        private static Drone GetControlledDrone(ComputerStation station) =>
-            station.currentlyControllingEnt.Get(serverside: true) as Drone;
-
         private void RestoreVanillaSettings(Drone drone)
         {
             if (_vanillaDroneProtection != null && _customProtectionProperties.Contains(drone.baseProtection))
+            {
                 drone.baseProtection = _vanillaDroneProtection;
+            }
 
-            if (_vanillaDroneProperties != null)
-                _vanillaDroneProperties?.ApplyToDrone(drone);
+            _vanillaDroneProperties?.ApplyToDrone(drone);
         }
 
         private bool TryApplyProfile(Drone drone, DroneProfile profile, bool restoreVanilla = false)
@@ -210,7 +218,9 @@ namespace Oxide.Plugins
                 return false;
 
             if (restoreVanilla)
+            {
                 RestoreVanillaSettings(drone);
+            }
 
             profile.ApplyToDrone(drone);
             Interface.CallHook("OnDroneSettingsChanged", drone);
@@ -225,12 +235,13 @@ namespace Oxide.Plugins
             foreach (var entry in damageMap)
             {
                 DamageType damageType;
-                if (!Enum.TryParse<DamageType>(entry.Key, true, out damageType))
+                if (!Enum.TryParse(entry.Key, true, out damageType))
                 {
-                    _pluginInstance.LogError($"Invalid damage type: {entry.Key}");
+                    LogError($"Invalid damage type: {entry.Key}");
                     continue;
                 }
-                protectionProperties.Add(damageType, 1 - Clamp(entry.Value, 0, 1));
+
+                protectionProperties.Add(damageType, 1 - Mathf.Clamp(entry.Value, 0, 1));
             }
 
             return protectionProperties;
@@ -242,11 +253,13 @@ namespace Oxide.Plugins
 
         // Fixes issue where fast moving drones temporarily disconnect and reconnect.
         // This issue occurs because the drone's network group and the client's secondary network group cannot be changed at the same time.
-        private class DroneConnectionFixer : EntityComponent<Drone>
+        private class DroneConnectionFixer : FacepunchBehaviour
         {
-            public static void OnControlStarted(Drone drone, BasePlayer player)
+            public static void OnControlStarted(DroneSettings plugin, Drone drone, BasePlayer player)
             {
-                drone.GetOrAddComponent<DroneConnectionFixer>().AddController(player);
+                var component = drone.GetOrAddComponent<DroneConnectionFixer>();
+                component._rootEntity = plugin.GetDroneOrRootEntity(drone);
+                component._controllers.Add(player);
             }
 
             public static void OnControlEnded(Drone drone, BasePlayer player)
@@ -264,25 +277,17 @@ namespace Oxide.Plugins
                 if (component == null)
                     return;
 
-                component.SetRootEntity(rootEntity);
+                component._rootEntity = rootEntity;
             }
 
-            public static void RemoveFromDrone(Drone drone) =>
+            public static void RemoveFromDrone(Drone drone)
+            {
                 DestroyImmediate(drone.GetComponent<DroneConnectionFixer>());
+            }
 
-            private bool _wasCallingNetworkGroup = false;
             private BaseEntity _rootEntity;
             private List<BasePlayer> _controllers = new List<BasePlayer>();
-
-            private void Awake()
-            {
-                _rootEntity = GetDroneOrRootEntity(baseEntity);
-            }
-
-            private void AddController(BasePlayer player)
-            {
-                _controllers.Add(player);
-            }
+            private bool _wasCallingNetworkGroup;
 
             private void RemoveController(BasePlayer player)
             {
@@ -293,17 +298,14 @@ namespace Oxide.Plugins
                 }
             }
 
-            private void SetRootEntity(BaseEntity rootEntity)
-            {
-                _rootEntity = rootEntity;
-            }
-
             // Using LateUpdate since that's the soonest we can learn about a pending Invoke.
             private void LateUpdate()
             {
                 // Detect when UpdateNetworkGroup has been scheduled, in order to schedule a custom one in its place
                 if (_rootEntity.isCallingUpdateNetworkGroup && !_wasCallingNetworkGroup)
+                {
                     ScheduleCustomUpdateNetworkGroup(_rootEntity);
+                }
 
                 _wasCallingNetworkGroup = _rootEntity.isCallingUpdateNetworkGroup;
             }
@@ -325,7 +327,7 @@ namespace Oxide.Plugins
                     SendFakeUpdateNetworkGroup(_rootEntity, player, BaseNetworkable.GlobalNetworkGroup.ID);
 
                     // Update the client secondary network group to the one that the drone will change to.
-                    player.net.SwitchSecondaryGroup(Network.Net.sv.visibility.GetGroup(_rootEntity.transform.position));
+                    player.net.SwitchSecondaryGroup(Net.sv.visibility.GetGroup(_rootEntity.transform.position));
                 }
 
                 // Update the drone's network group based on its current position.
@@ -345,7 +347,9 @@ namespace Oxide.Plugins
                     return;
 
                 if (_rootEntity.isCallingUpdateNetworkGroup && !_rootEntity.IsInvoking(_rootEntity.UpdateNetworkGroup))
+                {
                     _rootEntity.UpdateNetworkGroup();
+                }
             }
         }
 
@@ -356,7 +360,7 @@ namespace Oxide.Plugins
         private DroneProfile GetDroneProfile(Drone drone)
         {
             var droneType = DetermineDroneType(drone) ?? BaseDroneType;
-            return _pluginConfig.FindProfile(droneType, drone.OwnerID);
+            return _config.FindProfile(this, droneType, drone.OwnerID);
         }
 
         private class DroneProfile
@@ -376,28 +380,28 @@ namespace Oxide.Plugins
             [JsonIgnore]
             public string Permission;
 
-            public void Init(DroneSettings pluginInstance, string droneType, bool requiresPermission)
+            public void Init(DroneSettings plugin, string droneType, bool requiresPermission)
             {
-                if (requiresPermission)
+                if (requiresPermission && !string.IsNullOrWhiteSpace(PermissionSuffix))
                 {
-                    if (string.IsNullOrWhiteSpace(PermissionSuffix))
-                        return;
-
                     Permission = GetProfilePermission(droneType, PermissionSuffix);
-                    pluginInstance.permission.RegisterPermission(Permission, pluginInstance);
+                    plugin.permission.RegisterPermission(Permission, plugin);
                 }
 
                 if (DamageScale != null)
-                    ProtectionProperties = pluginInstance.CreateProtectionProperties(DamageScale);
+                {
+                    ProtectionProperties = plugin.CreateProtectionProperties(DamageScale);
+                }
             }
 
             public void ApplyToDrone(Drone drone)
             {
                 if (ProtectionProperties != null)
+                {
                     drone.baseProtection = ProtectionProperties;
+                }
 
-                if (DroneProperties != null)
-                    DroneProperties.ApplyToDrone(drone);
+                DroneProperties?.ApplyToDrone(drone);
             }
         }
 
@@ -405,7 +409,7 @@ namespace Oxide.Plugins
         {
             public static DroneProperties FromDrone(Drone drone)
             {
-                return new DroneProperties()
+                return new DroneProperties
                 {
                     KillInWater = drone.killInWater,
                     MovementAcceleration = drone.movementAcceleration,
@@ -446,17 +450,19 @@ namespace Oxide.Plugins
             public DroneProfile DefaultProfile = new DroneProfile();
 
             [JsonProperty("ProfilesRequiringPermission")]
-            public DroneProfile[] ProfilesRequiringPermission = new DroneProfile[0];
+            public DroneProfile[] ProfilesRequiringPermission = Array.Empty<DroneProfile>();
 
-            public void Init(DroneSettings pluginInstance, string droneType)
+            public void Init(DroneSettings plugin, string droneType)
             {
-                DefaultProfile.Init(pluginInstance, droneType, requiresPermission: false);
+                DefaultProfile.Init(plugin, droneType, requiresPermission: false);
 
                 foreach (var profile in ProfilesRequiringPermission)
-                    profile.Init(pluginInstance, droneType, requiresPermission: true);
+                {
+                    profile.Init(plugin, droneType, requiresPermission: true);
+                }
             }
 
-            public DroneProfile GetProfileForOwner(ulong ownerId)
+            public DroneProfile GetProfileForOwner(DroneSettings plugin, ulong ownerId)
             {
                 if (ownerId == 0 || (ProfilesRequiringPermission?.Length ?? 0) == 0)
                     return DefaultProfile;
@@ -465,7 +471,7 @@ namespace Oxide.Plugins
                 for (var i = ProfilesRequiringPermission.Length - 1; i >= 0; i--)
                 {
                     var profile = ProfilesRequiringPermission[i];
-                    if (profile.Permission != null && _pluginInstance.permission.UserHasPermission(ownerIdString, profile.Permission))
+                    if (profile.Permission != null && plugin.permission.UserHasPermission(ownerIdString, profile.Permission))
                         return profile;
                 }
 
@@ -476,13 +482,13 @@ namespace Oxide.Plugins
         private class Configuration : SerializableConfiguration
         {
             [JsonProperty("SettingsByDroneType")]
-            public Dictionary<string, DroneTypeConfig> SettingsByDroneType = new Dictionary<string, DroneTypeConfig>()
+            public Dictionary<string, DroneTypeConfig> SettingsByDroneType = new Dictionary<string, DroneTypeConfig>
             {
-                [BaseDroneType] = new DroneTypeConfig()
+                [BaseDroneType] = new DroneTypeConfig
                 {
-                    DefaultProfile = new DroneProfile()
+                    DefaultProfile = new DroneProfile
                     {
-                        DamageScale = new Dictionary<string, float>()
+                        DamageScale = new Dictionary<string, float>
                         {
                             [DamageType.Generic.ToString()] = 0.1f,
                             [DamageType.Heat.ToString()] = 0.2f,
@@ -490,12 +496,12 @@ namespace Oxide.Plugins
                             [DamageType.AntiVehicle.ToString()] = 0.25f,
                         },
                     },
-                    ProfilesRequiringPermission = new DroneProfile[]
+                    ProfilesRequiringPermission = new[]
                     {
-                        new DroneProfile()
+                        new DroneProfile
                         {
                             PermissionSuffix = "god",
-                            DroneProperties = new DroneProperties()
+                            DroneProperties = new DroneProperties
                             {
                                 KillInWater = false,
                                 DisableWhenHurtChance = 0,
@@ -503,7 +509,7 @@ namespace Oxide.Plugins
                                 AltitudeAcceleration = 20,
                                 LeanWeight = 0,
                             },
-                            DamageScale = new Dictionary<string, float>()
+                            DamageScale = new Dictionary<string, float>
                             {
                                 [DamageType.AntiVehicle.ToString()] = 0,
                                 [DamageType.Arrow.ToString()] = 0,
@@ -534,16 +540,16 @@ namespace Oxide.Plugins
                         },
                     },
                 },
-                ["DroneStorage"] = new DroneTypeConfig()
+                ["DroneStorage"] = new DroneTypeConfig
                 {
-                    DefaultProfile = new DroneProfile()
+                    DefaultProfile = new DroneProfile
                     {
-                        DroneProperties = new DroneProperties()
+                        DroneProperties = new DroneProperties
                         {
                             MovementAcceleration = 7.5f,
                             AltitudeAcceleration = 7.5f,
                         },
-                        DamageScale = new Dictionary<string, float>()
+                        DamageScale = new Dictionary<string, float>
                         {
                             [DamageType.Generic.ToString()] = 0.1f,
                             [DamageType.Heat.ToString()] = 0.1f,
@@ -552,16 +558,16 @@ namespace Oxide.Plugins
                         },
                     },
                 },
-                ["DroneTurrets"] = new DroneTypeConfig()
+                ["DroneTurrets"] = new DroneTypeConfig
                 {
-                    DefaultProfile = new DroneProfile()
+                    DefaultProfile = new DroneProfile
                     {
-                        DroneProperties = new DroneProperties()
+                        DroneProperties = new DroneProperties
                         {
                             MovementAcceleration = 5,
                             AltitudeAcceleration = 5,
                         },
-                        DamageScale = new Dictionary<string, float>()
+                        DamageScale = new Dictionary<string, float>
                         {
                             [DamageType.Generic.ToString()] = 0.1f,
                             [DamageType.Heat.ToString()] = 0.1f,
@@ -572,16 +578,16 @@ namespace Oxide.Plugins
                         },
                     },
                 },
-                ["RidableDrones"] = new DroneTypeConfig()
+                ["RidableDrones"] = new DroneTypeConfig
                 {
-                    DefaultProfile = new DroneProfile()
+                    DefaultProfile = new DroneProfile
                     {
-                        DroneProperties = new DroneProperties()
+                        DroneProperties = new DroneProperties
                         {
                             MovementAcceleration = 7.5f,
                             AltitudeAcceleration = 7.5f,
                         },
-                        DamageScale = new Dictionary<string, float>()
+                        DamageScale = new Dictionary<string, float>
                         {
                             [DamageType.Generic.ToString()] = 0.1f,
                             [DamageType.Heat.ToString()] = 0.1f,
@@ -590,11 +596,11 @@ namespace Oxide.Plugins
                         },
                     },
                 },
-                ["MegaDrones"] = new DroneTypeConfig()
+                ["MegaDrones"] = new DroneTypeConfig
                 {
-                    DefaultProfile = new DroneProfile()
+                    DefaultProfile = new DroneProfile
                     {
-                        DroneProperties = new DroneProperties()
+                        DroneProperties = new DroneProperties
                         {
                             DisableWhenHurtChance = 0,
                             MovementAcceleration = 20,
@@ -602,7 +608,7 @@ namespace Oxide.Plugins
                             KillInWater = false,
                             LeanWeight = 0.1f,
                         },
-                        DamageScale = new Dictionary<string, float>()
+                        DamageScale = new Dictionary<string, float>
                         {
                             [DamageType.Generic.ToString()] = 0.1f,
                             [DamageType.Heat.ToString()] = 0.05f,
@@ -615,17 +621,19 @@ namespace Oxide.Plugins
                 },
             };
 
-            public void Init(DroneSettings pluginInstance)
+            public void Init(DroneSettings plugin)
             {
                 foreach (var entry in SettingsByDroneType)
-                    entry.Value.Init(pluginInstance, entry.Key);
+                {
+                    entry.Value.Init(plugin, entry.Key);
+                }
             }
 
-            public DroneProfile FindProfile(string droneType, ulong ownerId)
+            public DroneProfile FindProfile(DroneSettings plugin, string droneType, ulong ownerId)
             {
                 DroneTypeConfig droneTypeConfig;
                 return SettingsByDroneType.TryGetValue(droneType, out droneTypeConfig)
-                    ? droneTypeConfig.GetProfileForOwner(ownerId)
+                    ? droneTypeConfig.GetProfileForOwner(plugin, ownerId)
                     : null;
             }
         }
@@ -634,7 +642,7 @@ namespace Oxide.Plugins
 
         #endregion
 
-        #region Configuration Boilerplate
+        #region Configuration Helpers
 
         private class SerializableConfiguration
         {
@@ -674,7 +682,7 @@ namespace Oxide.Plugins
 
         private bool MaybeUpdateConfigDict(Dictionary<string, object> currentWithDefaults, Dictionary<string, object> currentRaw)
         {
-            bool changed = false;
+            var changed = false;
 
             foreach (var key in currentWithDefaults.Keys)
             {
@@ -705,20 +713,20 @@ namespace Oxide.Plugins
             return changed;
         }
 
-        protected override void LoadDefaultConfig() => _pluginConfig = GetDefaultConfig();
+        protected override void LoadDefaultConfig() => _config = GetDefaultConfig();
 
         protected override void LoadConfig()
         {
             base.LoadConfig();
             try
             {
-                _pluginConfig = Config.ReadObject<Configuration>();
-                if (_pluginConfig == null)
+                _config = Config.ReadObject<Configuration>();
+                if (_config == null)
                 {
                     throw new JsonException();
                 }
 
-                if (MaybeUpdateConfig(_pluginConfig))
+                if (MaybeUpdateConfig(_config))
                 {
                     LogWarning("Configuration appears to be outdated; updating and saving");
                     SaveConfig();
@@ -735,7 +743,7 @@ namespace Oxide.Plugins
         protected override void SaveConfig()
         {
             Log($"Configuration changes saved to {Name}.json");
-            Config.WriteObject(_pluginConfig, true);
+            Config.WriteObject(_config, true);
         }
 
         #endregion
