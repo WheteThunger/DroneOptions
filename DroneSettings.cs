@@ -12,7 +12,7 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Drone Settings", "WhiteThunder", "1.2.0")]
+    [Info("Drone Settings", "WhiteThunder", "1.3.0")]
     [Description("Allows changing speed, toughness and other properties of RC drones.")]
     internal class DroneSettings : CovalencePlugin
     {
@@ -29,7 +29,8 @@ namespace Oxide.Plugins
 
         private DroneProperties _vanillaDroneProperties;
         private ProtectionProperties _vanillaDroneProtection;
-        private List<ProtectionProperties> _customProtectionProperties = new List<ProtectionProperties>();
+        private readonly List<ProtectionProperties> _customProtectionProperties = new List<ProtectionProperties>();
+        private readonly List<string> _reusableDroneTypeList = new List<string>();
 
         #endregion
 
@@ -165,11 +166,6 @@ namespace Oxide.Plugins
 
         #region Helper Methods
 
-        private static string DetermineDroneType(Drone drone)
-        {
-            return Interface.CallHook("OnDroneTypeDetermine", drone) as string;
-        }
-
         private static bool ApplySettingsWasBlocked(Drone drone)
         {
             var hookResult = Interface.CallHook("OnDroneSettingsChange", drone);
@@ -189,6 +185,56 @@ namespace Oxide.Plugins
         private static Drone GetControlledDrone(ComputerStation station)
         {
             return station.currentlyControllingEnt.Get(serverside: true) as Drone;
+        }
+
+        private string DetermineBestDroneType(List<string> droneTypeList)
+        {
+            if (droneTypeList.Count == 0)
+                return null;
+
+            if (droneTypeList.Count == 1)
+                return droneTypeList[0];
+
+            string bestDroneType = null;
+            var bestDroneTypePriorityIndex = int.MaxValue;
+
+            // Sort by priority, else sort alphabetically.
+            foreach (var droneType in droneTypeList)
+            {
+                var priorityIndex = Array.IndexOf(_config.DroneTypePriority, droneType);
+                priorityIndex = priorityIndex >= 0 ? priorityIndex : int.MaxValue;
+
+                if (bestDroneType == null)
+                {
+                    bestDroneType = droneType;
+                    bestDroneTypePriorityIndex = priorityIndex;
+                    continue;
+                }
+
+                if (priorityIndex < bestDroneTypePriorityIndex
+                    || priorityIndex == bestDroneTypePriorityIndex && string.Compare(droneType, bestDroneType, StringComparison.InvariantCultureIgnoreCase) < 0)
+                {
+                    bestDroneType = droneType;
+                    bestDroneTypePriorityIndex = priorityIndex;
+                }
+            }
+
+            return bestDroneType;
+        }
+
+        private string DetermineDroneType(Drone drone)
+        {
+            _reusableDroneTypeList.Clear();
+            var hookResult = Interface.CallHook("OnDroneTypeDetermine", drone, _reusableDroneTypeList);
+            return _reusableDroneTypeList.Count > 0
+                ? DetermineBestDroneType(_reusableDroneTypeList)
+                : hookResult as string;
+        }
+
+        private DroneProfile GetDroneProfile(Drone drone)
+        {
+            var droneType = DetermineDroneType(drone) ?? BaseDroneType;
+            return _config.FindProfile(this, droneType, drone.OwnerID);
         }
 
         private BaseEntity GetRootEntity(Drone drone)
@@ -365,12 +411,7 @@ namespace Oxide.Plugins
 
         #region Configuration
 
-        private DroneProfile GetDroneProfile(Drone drone)
-        {
-            var droneType = DetermineDroneType(drone) ?? BaseDroneType;
-            return _config.FindProfile(this, droneType, drone.OwnerID);
-        }
-
+        [JsonObject(MemberSerialization.OptIn)]
         private class DroneProfile
         {
             [JsonProperty("PermissionSuffix", DefaultValueHandling = DefaultValueHandling.Ignore)]
@@ -413,6 +454,7 @@ namespace Oxide.Plugins
             }
         }
 
+        [JsonObject(MemberSerialization.OptIn)]
         private class DroneProperties
         {
             public static DroneProperties FromDrone(Drone drone)
@@ -452,6 +494,7 @@ namespace Oxide.Plugins
             }
         }
 
+        [JsonObject(MemberSerialization.OptIn)]
         private class DroneTypeConfig
         {
             [JsonProperty("DefaultProfile")]
@@ -487,8 +530,44 @@ namespace Oxide.Plugins
             }
         }
 
-        private class Configuration : SerializableConfiguration
+        [JsonObject(MemberSerialization.OptIn)]
+        private class Configuration : BaseConfiguration
         {
+            public override bool Migrate()
+            {
+                var changed = false;
+
+                foreach (var entry in _droneTypeAliases)
+                {
+                    var oldName = entry.Key;
+                    var newName = entry.Value;
+
+                    DroneTypeConfig droneTypeConfig;
+                    if (SettingsByDroneType.TryGetValue(oldName, out droneTypeConfig))
+                    {
+                        SettingsByDroneType[newName] = droneTypeConfig;
+                        SettingsByDroneType.Remove(oldName);
+                        changed = true;
+                    }
+                }
+
+                return changed;
+            }
+
+            [JsonIgnore]
+            private readonly Dictionary<string, string> _droneTypeAliases = new Dictionary<string, string>
+            {
+                ["RidableDrones"] = "DroneChair",
+            };
+
+            [JsonProperty("DroneTypePriority")]
+            public string[] DroneTypePriority =
+            {
+                "DroneTurrets",
+                "DroneChair",
+                "DroneStorage",
+            };
+
             [JsonProperty("SettingsByDroneType")]
             public Dictionary<string, DroneTypeConfig> SettingsByDroneType = new Dictionary<string, DroneTypeConfig>
             {
@@ -549,6 +628,42 @@ namespace Oxide.Plugins
                     },
                 },
                 ["DroneBoombox"] = new DroneTypeConfig
+                {
+                    DefaultProfile = new DroneProfile
+                    {
+                        DroneProperties = new DroneProperties
+                        {
+                            MovementAcceleration = 7.5f,
+                            AltitudeAcceleration = 7.5f,
+                        },
+                        DamageScale = new Dictionary<string, float>
+                        {
+                            [DamageType.Generic.ToString()] = 0.1f,
+                            [DamageType.Heat.ToString()] = 0.1f,
+                            [DamageType.Bullet.ToString()] = 0.1f,
+                            [DamageType.AntiVehicle.ToString()] = 0.1f,
+                        },
+                    },
+                },
+                ["DroneChair"] = new DroneTypeConfig
+                {
+                    DefaultProfile = new DroneProfile
+                    {
+                        DroneProperties = new DroneProperties
+                        {
+                            MovementAcceleration = 7.5f,
+                            AltitudeAcceleration = 7.5f,
+                        },
+                        DamageScale = new Dictionary<string, float>
+                        {
+                            [DamageType.Generic.ToString()] = 0.1f,
+                            [DamageType.Heat.ToString()] = 0.1f,
+                            [DamageType.Bullet.ToString()] = 0.1f,
+                            [DamageType.AntiVehicle.ToString()] = 0.1f,
+                        },
+                    },
+                },
+                ["DroneSign"] = new DroneTypeConfig
                 {
                     DefaultProfile = new DroneProfile
                     {
@@ -627,24 +742,6 @@ namespace Oxide.Plugins
                         },
                     },
                 },
-                ["RidableDrones"] = new DroneTypeConfig
-                {
-                    DefaultProfile = new DroneProfile
-                    {
-                        DroneProperties = new DroneProperties
-                        {
-                            MovementAcceleration = 7.5f,
-                            AltitudeAcceleration = 7.5f,
-                        },
-                        DamageScale = new Dictionary<string, float>
-                        {
-                            [DamageType.Generic.ToString()] = 0.1f,
-                            [DamageType.Heat.ToString()] = 0.1f,
-                            [DamageType.Bullet.ToString()] = 0.1f,
-                            [DamageType.AntiVehicle.ToString()] = 0.1f,
-                        },
-                    },
-                },
             };
 
             public void Init(DroneSettings plugin)
@@ -657,6 +754,12 @@ namespace Oxide.Plugins
 
             public DroneProfile FindProfile(DroneSettings plugin, string droneType, ulong ownerId)
             {
+                string alias;
+                if (_droneTypeAliases.TryGetValue(droneType, out alias))
+                {
+                    droneType = alias;
+                }
+
                 DroneTypeConfig droneTypeConfig;
                 return SettingsByDroneType.TryGetValue(droneType, out droneTypeConfig)
                     ? droneTypeConfig.GetProfileForOwner(plugin, ownerId)
@@ -670,8 +773,10 @@ namespace Oxide.Plugins
 
         #region Configuration Helpers
 
-        private class SerializableConfiguration
+        private class BaseConfiguration
         {
+            public virtual bool Migrate() => false;
+
             public string ToJson() => JsonConvert.SerializeObject(this);
 
             public Dictionary<string, object> ToDictionary() => JsonHelper.Deserialize(ToJson()) as Dictionary<string, object>;
@@ -699,11 +804,11 @@ namespace Oxide.Plugins
             }
         }
 
-        private bool MaybeUpdateConfig(SerializableConfiguration config)
+        private bool MaybeUpdateConfig(BaseConfiguration config)
         {
             var currentWithDefaults = config.ToDictionary();
             var currentRaw = Config.ToDictionary(x => x.Key, x => x.Value);
-            return MaybeUpdateConfigDict(currentWithDefaults, currentRaw);
+            return MaybeUpdateConfigDict(currentWithDefaults, currentRaw) | config.Migrate();
         }
 
         private bool MaybeUpdateConfigDict(Dictionary<string, object> currentWithDefaults, Dictionary<string, object> currentRaw)

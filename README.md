@@ -4,17 +4,18 @@
 - Allows multiple settings profiles based on permissions
 - Allows other plugins to dynamically change a drone's profile based on attachments or other circumstances
 
-Note: By default, this plugin changes the settings of all drones since they aren't very balanced in vanilla. If you aren't happy with the plugin's defaults, you can of course configure them to your liking.
+Note: By default, this plugin changes the settings of all drones since they aren't very balanced in vanilla. If you aren't content with the plugin's defaults, you can of course configure them to your liking.
 
 ## How it works
 
 There are multiple types of drones.
 - `BaseDrone` -- Normal drones with no attachments
 - `DroneBoombox` -- Drones that have an attached boombox from the [Drone Boombox](https://umod.org/plugins/drone-boombox) plugin
+- `DroneChair` -- Drones that have an attached chair from the [Ridable Drones](https://umod.org/plugins/ridable-drones) plugin
+- `DroneSign` -- Drones that have an attached wooden sign from the [Ridable Drones](https://umod.org/plugins/ridable-drones) plugin
 - `DroneStorage` -- Drones that have an attached stash container from the [Drone Storage](https://umod.org/plugins/drone-storage) plugin
 - `DroneTurrets` -- Drones that have an attached turret from the [Drone Turrets](https://umod.org/plugins/drone-turrets) plugin
 - `MegaDrones` -- Drones created by the [Mega Drones](https://umod.org/plugins/mega-drones) plugin
-- `RidableDrones` -- Drones that have an attached chair from the [Ridable Drones](https://umod.org/plugins/ridable-drones) plugin
 
 Each drone type has a default profile which determines the speed, toughness and other properties for drones of that type. Each drone type can also have unlimited permission-based profiles which will override the default depending on the drone owner's permissions.
 
@@ -24,6 +25,11 @@ Default configuration:
 
 ```json
 {
+  "DroneTypePriority": [
+    "DroneTurrets",
+    "DroneChair",
+    "DroneStorage"
+  ],
   "SettingsByDroneType": {
     "BaseDrone": {
       "DefaultProfile": {
@@ -179,6 +185,8 @@ Default configuration:
 }
 ```
 
+`DroneTypePriority` allows you to define the priority of drone types, in case a drone has multiple types (due to having multiple attachments). For example, if a drone has both a stash (DroneStorage) and a chair (RidableDrones), this plugin would apply a `"DroneChair"` settings profile instead of `"DroneStorage"` since `"DroneChair"` appears in the list first (in the default configuration of the plugin).
+
 Each drone type has the following options.
 - `DefaultProfile` -- Applies to all drones of this type, except for drones owned by players with permission to a profile under `ProfilesRequiringPermission` for this drone type.
 - `ProfilesRequiringPermission` -- List of profiles that require permission. Each profile will generate a permission of the format `dronesettings.<type>.<suffix>` (e.g., `dronesettings.basedrone.god`). Granting that permission to a player will cause any drones they deploy to have that profile instead of `DefaultProfile`. Granting multiple profiles to a player will cause only the last one to apply, based on the order in the config.
@@ -188,17 +196,17 @@ Each profile has the following options.
 - `DroneProperties`
   - `KillInWater` (default: `true`) -- While `true`, the drone will be destroyed when it enters water. While `false` the drone can enter water without issue.
     - Tip: While controlling a drone that is underwater, for some reason, you can see better if wearing a diving mask.
-  - `DisableWhenHurtChance` (default: `25.0`) -- This determines the chance that the drone control will be briefly disabled when the drone is damaged.
+  - `DisableWhenHurtChance` (default: `25.0`) -- This determines the chance that movement controls of the drone will be briefly interrupted when the drone is damaged.
   - `MovementAcceleration` (default: `10.0`) -- This determines the drone's horizontal movement speed (forward, backward, sideways).
   - `AltitudeAcceleration` (default: `10.0`) -- This determines the drone's vertical movement speed (up, down).
   - `LeanWeight` (vanilla: `0.25`) -- This determines how much the drone leans while moving, as well as how much altitude is lost while moving.
     - Set to `0.0` for no lean or altitude loss.
       - Useful when using the [Drone Lights](https://umod.org/plugins/drone-lights) plugin since it prevents the beam from unintentionally moving as the drone leans.
       - Useful when flying in locations where the altitude does not change, such as in the underground train tunnels.
-- `DamageScale` (each `0.0` to `1.0`) -- These options determine how much damage the drone will take, per damage type. If this option is excluded, drones will use vanilla damage scaling.
-  - Set a damage type to `1.0` to take full damage. This is the default for any damage type not specified.
+- `DamageScale` (each `0.0` to `1.0`) -- These options determine how much damage the drone will take, per damage type. If you want to use vanilla damage scaling, simply remove the `DamageScale` section from the profile.
+  - Set a damage type to `1.0` to take full damage. This is the default for any damage type not defined in this section.
   - Set a damage type to `0.0` to block all damage of that type.
-  - Note: Vanilla Drone collision uses `Generic` damage, not `Collision` damage. Using the Better Drone Collision plugin fixes that.
+  - Note: In vanilla, drone collision causes `Fall` damage. When the Better Drone Collision plugin is installed, drone collision causes `Collision` damage.
 
 ## Recommended compatible plugins
 
@@ -235,13 +243,14 @@ void API_RefreshDroneProfile(Drone drone)
 #### OnDroneTypeDetermine
 
 ```csharp
-string OnDroneTypeDetermine(Drone drone)
+string OnDroneTypeDetermine(Drone drone, List<string> droneTypes)
 ```
 
-- Called when this plugin is determining which profile to apply to a particular drone
-- Returning a string indicates that the drone is special and should use the specified profile type
-- If all plugins return `null`, this plugin will select a profile of type `"BaseDrone"`
-- Recommended to conditionally return your plugin's `Name` or `null`
+- Called when this plugin is determining which profile type to apply to a particular drone
+- (Deprecated) Returning a `string` indicates that the drone is special and should use the specified profile type
+- Adding a `string` (recommend your plugin's `Name`) to the `droneTypes` list indicates that the drone should use the specified string as the profile type
+  - If multiple entries are added to `droneTypes` (most likely due to the drone having multiple attachments), the drone type will be selected according to the `DroneTypePriority` configuration option or alphabetical order if none of the provided types are in `DroneTypePriority`
+- If `droneTypes` is empty and all plugins return `null` (or use `void` return type), the drone will be assumed to be of type `"BaseDrone"`
 
 #### OnDroneSettingsChange
 
